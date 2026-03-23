@@ -25,6 +25,20 @@ async function stocks_price() {
     const response = await fetch(API_URL + "/stocks_price");
     const data = await response.json();
     console.log(data.message);
+
+    const listContainer = document.getElementById('stocks_list')
+
+    const htmlContent = data.map(data => `
+      < tr >
+        <td>${data.number}</td>
+        <td>${data.id}</td>
+        <td>${data.name}</td>
+        <td>${data.price}</td>
+      </tr >
+      `).join();
+
+    listContainer.innerHTML = htmlContent
+
   } catch (error) {
     console.error("get fail:", error);
   }
