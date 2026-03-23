@@ -1,4 +1,4 @@
-const random_url = "talented-atm-published-prospect";
+const random_url = "licensed-insights-indicated-competitive";
 const API_URL = "https://" + random_url + ".trycloudflare.com";
 async function connectToApi() {
   try {
