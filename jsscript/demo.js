@@ -26,19 +26,36 @@ async function stocks_price() {
     const data = await response.json();
     console.log(data.message);
 
-    const listContainer = document.getElementById('stocks_list')
+    const stockArray = data.data || data;
 
-    const htmlContent = data.map(data => `
-      < tr >
-        <td>${data.number}</td>
-        <td>${data.id}</td>
-        <td>${data.name}</td>
-        <td>${data.price}</td>
-      </tr >
-      `).join();
+    const listContainer = document.getElementById('stocks_list');
+    if (!listContainer) {
+      console.error("can't find stocks_list element");
+      return;
+    }
 
-    listContainer.innerHTML = htmlContent
+    // const htmlContent = data.map(data => `
+    //   < tr >
+    //     <td>${data.number}</td>
+    //     <td>${data.id}</td>
+    //     <td>${data.name}</td>
+    //     <td>${data.price}</td>
+    //   </tr >
+    //   `).join();
 
+    let html = '';
+    stockArray.forEach(stock => {
+      html += `
+        <tr>
+          <td>${stock.number}</td>
+          <td>${stock.id}</td>
+          <td>${stock.name}</td>
+          <td>${stock.price}</td>
+        </tr>
+      `
+    });
+    listContainer.innerHTML = html;
+    console.log("table OK");
   } catch (error) {
     console.error("get fail:", error);
   }
