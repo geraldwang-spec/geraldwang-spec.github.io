@@ -15,7 +15,17 @@ async function connectToApi() {
     document.getElementById("apple").innerText = JSON.stringify(data);
 
   } catch (error) {
-    console.error("connection fail", error)
+    console.error("connection fail", error);
   }
 
+}
+
+async function stocks_price() {
+  try {
+    const response = await fetch(API_URL + "/stocks_price");
+    const data = await response.json();
+    console.log(data.message);
+  } catch (error) {
+    console.error("get fail:", error);
+  }
 }
