@@ -22,9 +22,9 @@ async function connectToApi() {
 
 async function stocks_price() {
   try {
-    const response = await fetch(API_URL + "/stocks_price");
-    const data = await response.json();
-    // const data = await fetch(API_URL + "/stocks_price").json()
+    // const response = await fetch(API_URL + "/stocks_price");
+    // const data = await response.json();
+    const data = await fetch(API_URL + "/stocks_price").json()
     console.log(data.message);
 
     const stockArray = data.data || data;
