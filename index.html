@@ -4,7 +4,15 @@
 <head>
   <meta charset="utf-8">
   <title>Hello GitHub</title>
-  <script src="jsscript/demo.js"></script>
+  <script src="jsscript/demo.js">
+    (function () {
+      var s = document.createElement('script');
+      s.src = "jsscript/demo.js?t=" + new Date().getTime();
+      s.async = true;
+      document.head.appendChild(s);
+      </head >
+    })();
+  </script>
 </head>
 
 <body>
