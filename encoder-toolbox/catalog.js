@@ -20,6 +20,14 @@ window.CATALOG = [
     summary: "機器人關節磁性編碼器的學習與計算工具：從霍爾感測器的類比訊號、ADC 取樣，到 Nonius 雙磁軌算出絕對角度。",
     tools: [
       {
+        id: "sensors",
+        name: "讀頭與磁軌感測器",
+        href: "sensors.html",
+        summary: "把磁環攤平，看 8 顆霍爾感測器怎麼排、各自讀到多少，再兩兩相減成 ADC 的 4 個通道。",
+        tags: ["8 顆感測器", "差動", "S 極最大"],
+        points: ["主軌與 Nonius 軌的讀頭動作動畫", "sin+ / sin− / cos+ / cos− 即時讀值", "S 中間、N 中間、交界的讀值對照表"]
+      },
+      {
         id: "nonius",
         name: "Nonius 絕對角度計算",
         href: "nonius.html",

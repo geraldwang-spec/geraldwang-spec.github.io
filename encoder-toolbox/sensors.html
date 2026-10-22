@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>讀頭與磁軌感測器</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: same datasheet column as the Nonius page; one wide bench with the unrolled tracks + 8 sensors, then explanation cards and a lookup table */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --ink:#1b2430; --muted:#5b6675; --line:#d6dce3; --chip:#eef1f4;
+  --north:#c8442b; --south:#2f6fb3; --sin:#6a60d0; --cos:#0f8a68; --result:#0f7a62;
+  --f-display:"Noto Serif TC","Songti TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740; --chip:#222a33;
+  --north:#e2694f; --south:#5b9be0; --sin:#9d95f0; --cos:#3cc29b; --result:#3cc29b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740; --chip:#222a33;
+  --north:#e2694f; --south:#5b9be0; --sin:#9d95f0; --cos:#3cc29b; --result:#3cc29b; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,5vw,40px)} h2{font-size:24px} h3{font-size:17px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-size:13px;letter-spacing:.08em;color:var(--muted)}
+.lede{color:var(--muted);font-size:17px}
+section{display:flex;flex-direction:column;gap:16px}
+.bench{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.svgbox{overflow-x:auto}
+.svgbox svg{width:100%;min-width:600px;height:auto;display:block}
+.th{font-size:14px;font-weight:500;fill:var(--ink);font-family:var(--f-body)}
+.ts{font-size:12px;fill:var(--muted);font-family:var(--f-body)}
+.tm{font-size:12px;fill:var(--ink);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.ctl{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:14px}
+.ctl label{color:var(--muted)}
+.ctl input[type=range]{flex:1;min-width:180px;accent-color:var(--result)}
+.ctl output{font-family:var(--f-mono);min-width:4.5em;text-align:right;font-variant-numeric:tabular-nums}
+button{font:inherit;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.on{border-color:var(--result);color:var(--result)}
+:focus-visible{outline:2px solid var(--result);outline-offset:2px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.sw{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.card p{font-size:15px}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{font-weight:500;color:var(--muted);font-size:13px;white-space:nowrap}
+td:first-child,th:first-child{text-align:left}
+td{font-family:var(--f-mono)} td:first-child{font-family:var(--f-body)}
+tr:last-child td{border-bottom:none}
+.note{font-size:14px;color:var(--muted)}
+code{font-family:var(--f-mono);background:var(--chip);padding:1px 6px;border-radius:4px;font-size:.92em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="backlink" href="./#encoder" style="font-size:14px;color:var(--muted);text-decoration:none">← 回到工具站</a>
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">讀頭 · 差動霍爾感測器排列</div>
+  <h1>讀頭與磁軌感測器</h1>
+  <p class="lede">把兩條磁環剪開攤平，看磁極怎麼從讀頭下方滑過、8 顆感測器各自讀到多少，以及它們怎麼兩兩相減變成 ADC 的 4 個通道。</p>
+</header>
+
+<section>
+  <div class="bench">
+    <div class="svgbox">
+      <svg viewBox="0 0 680 372" role="img" aria-label="主軌與 Nonius 軌各有一個讀頭，每個讀頭 4 顆感測器，共 8 顆，兩兩相減成 4 路 ADC 通道">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+          <clipPath id="win"><rect x="30" y="0" width="400" height="372"/></clipPath>
+        </defs>
+        <text class="th" x="30" y="48">A 主軌（外環 32 對極）</text>
+        <text class="th" x="30" y="190">B Nonius 軌（內環 31 對極）</text>
+        <g clip-path="url(#win)"><g id="stripA"></g><g id="stripB"></g></g>
+        <rect x="30" y="60" width="400" height="40" fill="none" stroke="var(--line)" stroke-width="1"/>
+        <rect x="30" y="202" width="400" height="40" fill="none" stroke="var(--line)" stroke-width="1"/>
+        <g id="sensA"></g><g id="sensB"></g>
+        <path d="M346 126 H446 V88 H458" fill="none" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)"/>
+        <path d="M350 268 H446 V230 H458" fill="none" stroke="var(--muted)" stroke-width="1" marker-end="url(#arrow)"/>
+        <text class="th" x="466" y="48">ADC 4 個通道</text>
+        <g id="bars"></g>
+        <text class="ts" id="calc1" x="30" y="338"></text>
+        <text class="ts" id="calc2" x="30" y="360"></text>
+      </svg>
+    </div>
+    <div class="ctl">
+      <label for="th">轉角 θ</label>
+      <input type="range" id="th" min="0" max="359.9" step="0.0125" value="0">
+      <output id="thv">0.0°</output>
+      <button type="button" id="play">自動旋轉</button>
+    </div>
+    <div class="ctl">
+      <span style="color:var(--muted)">把主軌的 sin+ 移到：</span>
+      <button type="button" data-th="2.8125">S 極中間</button>
+      <button type="button" data-th="8.4375">N 極中間</button>
+      <button type="button" data-th="0">S/N 交界</button>
+      <button type="button" data-th="100">θ = 100°</button>
+    </div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--south)"></span>S 極</span>
+      <span><span class="sw" style="background:var(--north)"></span>N 極</span>
+      <span><span class="sw" style="background:var(--sin)"></span>sin+</span>
+      <span><span class="sw" style="border:1.5px solid var(--sin)"></span>sin−（隔半對極）</span>
+      <span><span class="sw" style="background:var(--cos)"></span>cos+（隔 1/4 對極）</span>
+      <span><span class="sw" style="border:1.5px solid var(--cos)"></span>cos−</span>
+    </div>
+  </div>
+  <p class="note">每顆感測器的讀值 = 2048 ± 750：S 極正中間最大、N 極正中間最小、S/N 交界剛好 2048。這是常見線性霍爾（磁鐵面對晶片正面）的極性，翻面安裝會反過來。</p>
+</section>
+
+<section>
+  <h2>看懂這張圖</h2>
+  <div class="cards">
+    <div class="card"><h3>兩條磁軌、兩個讀頭</h3><p>上面是主軌 A，下面是 Nonius 軌 B，各有一個固定不動的讀頭（虛線框）。磁環轉動，就是磁條從讀頭下方滑過去。B 的極比較寬，所以會越來越落後 A。</p></div>
+    <div class="card"><h3>每個讀頭 4 顆感測器</h3><p>依序是 sin+、cos+、sin−、cos−，彼此相隔 1/4 對極（90° 電氣角）。兩個讀頭合計 8 顆。</p></div>
+    <div class="card"><h3>兩兩相減成 4 個通道</h3><p>sin+ 和 sin− 隔半對極，一顆在 S 上時另一顆就在 N 上，讀值一高一低。相減後振幅加倍，外部干擾則互相抵消。每個讀頭得到 2 路，合計 4 路進 ADC。</p></div>
+    <div class="card"><h3>算出絕對角度</h3><p>每條磁軌用 atan2(sin, cos) 算出相位 φ，兩軌相減得到粗角度，再判斷第幾個極週期 k，最後由主軌算出精確的 θ。詳細過程在 Nonius 絕對角度計算頁。</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>主軌讀頭在不同位置的讀值</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>sin+ 的位置</th><th>sin+</th><th>sin−</th><th>A_sin = 2048 + (sin+ − sin−)</th><th>cos+</th><th>cos−</th><th>A_cos</th></tr></thead>
+    <tbody id="tbl"></tbody>
+  </table></div>
+  <p class="note">相減的結果再加上 2048，是模擬差動放大器把訊號移到 ADC 中心再輸出的做法，所以 A_sin、A_cos 會在 548 到 3548 之間擺動。</p>
+</section>
+
+<section>
+  <h2>感測器要放多遠</h2>
+  <p>間距由磁軌的極寬決定：一對極（N + S）是 360° 電氣角，所以 1/4 對極就是 90°。以主軌極寬 1.28 mm 為例，一對極 2.56 mm，sin+ 到 cos+ 要隔 <code>0.64 mm</code>，sin+ 到 sin− 要隔 <code>1.28 mm</code>。Nonius 軌的極寬不同，所以它的讀頭有自己的一排感測器，不能和主軌共用。</p>
+  <p>實際的晶片（例如 iC-MU）每條磁軌下面是一整排霍爾元件，分散在一個極距內加總，再合成這 4 路訊號，用來平均掉磁場的諧波。這頁畫的 8 顆是完成差動 sin / cos 的最少數量。</p>
+</section>
+</div>
+
+<script>
+const X0=200,PPA=160,PPB=160*32/31;
+const md=x=>((x%360)+360)%360, rad=d=>d*Math.PI/180;
+const $=id=>document.getElementById(id);
+function strip(id,pp,M,th,y){
+  const o=X0-md(M*th)/360*pp;let h='';
+  for(let n=-2;n<5;n++){const x=o+n*pp;
+    h+=`<rect x="${x.toFixed(1)}" y="${y}" width="${(pp/2).toFixed(1)}" height="40" fill="var(--south)"/><rect x="${(x+pp/2).toFixed(1)}" y="${y}" width="${(pp/2).toFixed(1)}" height="40" fill="var(--north)"/>`+
+       `<text x="${(x+pp/4).toFixed(1)}" y="${y+25}" text-anchor="middle" font-size="13" fill="#fff" font-family="var(--f-body)">S</text><text x="${(x+3*pp/4).toFixed(1)}" y="${y+25}" text-anchor="middle" font-size="13" fill="#fff" font-family="var(--f-body)">N</text>`;}
+  $(id).innerHTML=h;
+}
+const SENS=[['sin+',0,'var(--sin)',true],['cos+',90,'var(--cos)',true],['sin−',180,'var(--sin)',false],['cos−',270,'var(--cos)',false]];
+const read=(phi,off)=>Math.round(2048+750*Math.sin(rad(phi+off)));
+function sensors(id,pp,phi,y,name){
+  let h=`<rect x="186" y="${y-4}" width="${(3*pp/4+40).toFixed(1)}" height="62" rx="4" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 3"/>`;
+  const raw=SENS.map(([n,off,c,solid])=>{const x=X0+pp*off/360,v=read(phi,off);
+    h+=`<rect x="${(x-6).toFixed(1)}" y="${y}" width="12" height="12" rx="2" fill="${solid?c:'none'}" stroke="${c}" stroke-width="1.5"/>`+
+       `<text class="ts" x="${x.toFixed(1)}" y="${y+27}" text-anchor="middle">${n}</text>`+
+       `<text class="tm" x="${x.toFixed(1)}" y="${y+46}" text-anchor="middle">${v}</text>`;return v;});
+  h+=`<text class="ts" x="${(X0+3*pp/4+30).toFixed(1)}" y="${y+10}">${name}</text>`;
+  $(id).innerHTML=h;return raw;
+}
+function upd(th){
+  strip('stripA',PPA,32,th,60);strip('stripB',PPB,31,th,202);
+  const pA=md(32*th),pB=md(31*th);
+  const a=sensors('sensA',PPA,pA,106,'讀頭 A'),b=sensors('sensB',PPB,pB,248,'讀頭 B');
+  const ch=[['A_sin',78,'var(--sin)',a[0],a[2]],['A_cos',100,'var(--cos)',a[1],a[3]],['B_sin',220,'var(--sin)',b[0],b[2]],['B_cos',242,'var(--cos)',b[1],b[3]]];
+  $('bars').innerHTML=ch.map(([n,y,c,p,m])=>{const cnt=2048+(p-m),w=80*cnt/4095;
+    return `<text class="ts" x="466" y="${y+4}">${n}</text><rect x="510" y="${y-5}" width="80" height="10" rx="2" fill="var(--chip)" stroke="var(--line)"/><rect x="510" y="${y-5}" width="${w.toFixed(1)}" height="10" rx="2" fill="${c}"/>`+
+      `<line x1="550" y1="${y-8}" x2="550" y2="${y+8}" stroke="var(--muted)"/><text class="tm" x="650" y="${y+4}" text-anchor="end">${cnt}</text>`;}).join('')+
+    `<text class="ts" x="466" y="128">sin = (sin+) − (sin−)</text><text class="ts" x="466" y="146">cos = (cos+) − (cos−)</text>`+
+    `<text class="ts" x="466" y="270">4 顆 → 2 路</text><text class="ts" x="466" y="288">兩軌共 8 顆 → 4 路</text>`;
+  const s=[a[0]-a[2],a[1]-a[3],b[0]-b[2],b[1]-b[3]];
+  const phA=md(Math.atan2(s[0],s[1])*180/Math.PI),phB=md(Math.atan2(s[2],s[3])*180/Math.PI),d=md(phA-phB);
+  const k=((Math.round((32*d-phA)/360)%32)+32)%32,out=(phA+360*k)/32;
+  $('calc1').textContent=`φA = atan2(A_sin, A_cos) = ${phA.toFixed(1)}°　　φB = atan2(B_sin, B_cos) = ${phB.toFixed(1)}°`;
+  $('calc2').textContent=`d = φA − φB = ${d.toFixed(1)}°　→　k = ${k}　→　θ = (${phA.toFixed(1)} + 360 × ${k}) / 32 = ${out.toFixed(1)}°`;
+  $('thv').textContent=th.toFixed(1)+'°';
+}
+const sl=$('th'),pb=$('play');let on=false,last=0;
+sl.addEventListener('input',()=>upd(+sl.value));
+document.querySelectorAll('[data-th]').forEach(b=>b.addEventListener('click',()=>{sl.value=b.dataset.th;upd(+sl.value);}));
+function tick(t){if(!on)return;const dt=last?Math.min((t-last)/1000,.1):0;last=t;sl.value=md(+sl.value+dt*4).toFixed(3);upd(+sl.value);requestAnimationFrame(tick);}
+pb.addEventListener('click',()=>{on=!on;last=0;pb.textContent=on?'暫停':'自動旋轉';pb.classList.toggle('on',on);if(on)requestAnimationFrame(tick);});
+upd(0);
+$('tbl').innerHTML=[['S 極中間',90],['S/N 交界',0],['N 極中間',270],['N/S 交界',180]].map(([n,phi])=>{
+  const sp=read(phi,0),sm=read(phi,180),cp=read(phi,90),cm=read(phi,270);
+  return `<tr><td>${n}</td><td>${sp}</td><td>${sm}</td><td>${2048+sp-sm}</td><td>${cp}</td><td>${cm}</td><td>${2048+cp-cm}</td></tr>`;}).join('');
+</script>
+</body>
+</html>
