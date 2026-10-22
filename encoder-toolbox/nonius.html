@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Nonius 絕對角度計算</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: datasheet-style single column; interactive bench = ring + controls | live ADC-to-angle chain, then full-width scope rows */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --ink:#1b2430; --muted:#5b6675; --line:#d6dce3;
+  --north:#c8442b; --south:#2f6fb3; --result:#0f7a62; --warn:#b5481c; --chip:#eef1f4;
+  --f-display:"Noto Serif TC","Songti TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740;
+  --north:#e2694f; --south:#5b9be0; --result:#3cc29b; --warn:#f08a5d; --chip:#222a33; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740;
+  --north:#e2694f; --south:#5b9be0; --result:#3cc29b; --warn:#f08a5d; --chip:#222a33; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,5vw,40px)}
+h2{font-size:24px}
+h3{font-size:17px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-size:13px;letter-spacing:.08em;color:var(--muted)}
+.lede{color:var(--muted);font-size:17px}
+section{display:flex;flex-direction:column;gap:16px}
+code{font-family:var(--f-mono);background:var(--chip);padding:1px 6px;border-radius:4px;font-size:.92em}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:24px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px}
+@media (max-width:820px){.bench{grid-template-columns:minmax(0,1fr);padding:16px}}
+.ringbox svg{width:100%;max-width:360px;display:block;margin:0 auto}
+.controls{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.grp{font-size:12px;letter-spacing:.06em;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+.ctl{display:grid;grid-template-columns:7.5em minmax(0,1fr) 4.8em;align-items:center;gap:10px;font-size:14px}
+.ctl label{color:var(--muted);line-height:1.3}
+.ctl output{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--result)}
+input[type=number],select{font:inherit;font-size:14px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+input[type=number]{font-family:var(--f-mono);width:6.5em}
+.legend{display:flex;gap:16px;justify-content:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.sw{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.steps{display:flex;flex-direction:column;gap:12px;min-width:0}
+.step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start}
+.num{width:26px;height:26px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.step .t{font-size:14px;color:var(--muted)}
+.step .v{font-family:var(--f-mono);font-size:14px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.step .v b{font-weight:600}
+.dim{color:var(--muted)}
+.cmp{display:grid;grid-template-columns:3.2em minmax(0,1fr);gap:8px;align-items:baseline}
+.cmp+.cmp{margin-top:3px}
+.cmp .lab{font-family:var(--f-body);font-size:12px;color:var(--muted)}
+.cmp.d{border-top:1px dashed var(--line);padding-top:3px}
+.final{border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.final .big{font-family:var(--f-mono);font-size:28px;font-weight:600;color:var(--result);font-variant-numeric:tabular-nums}
+.status{font-size:13px;padding:2px 10px;border-radius:999px;border:1px solid currentColor}
+.ok{color:var(--result)} .bad{color:var(--warn)}
+.n{color:var(--north)} .s{color:var(--south)} .r{color:var(--result)}
+.adc{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+.adc td{padding:3px 6px 3px 0;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.adc td.barc{width:100%;white-space:normal}
+.bar{position:relative;height:9px;background:var(--chip);border-radius:3px;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;left:0}
+.bar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--muted)}
+.full{grid-column:1/-1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.full svg{width:100%;height:auto;display:block}
+.scoperow{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1fr);gap:20px;align-items:center}
+@media (max-width:820px){.scoperow{grid-template-columns:minmax(0,1fr)}}
+.liss svg{max-width:220px;margin:0 auto}
+.cap{font-size:13px;color:var(--muted)}
+.formula{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--f-mono);font-size:15px;line-height:2;overflow-x:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.card p{font-size:15px}
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.pipe .card{gap:4px}
+.pipe .tag{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.pipe .card p{font-size:14px}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table.data{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+.data th,.data td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.data th{font-weight:500;color:var(--muted);font-size:13px;white-space:nowrap}
+.data td:first-child,.data th:first-child{text-align:left}
+.data td{font-family:var(--f-mono)}
+.data tr:last-child td{border-bottom:none}
+.note{font-size:14px;color:var(--muted)}
+ul{margin:0;padding-left:1.2em;max-width:68ch}
+li+li{margin-top:6px}
+button{font:inherit;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.on{border-color:var(--result);color:var(--result)}
+:focus-visible{outline:2px solid var(--result);outline-offset:2px}
+.presets{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.chk input{accent-color:var(--result);width:16px;height:16px}
+.code{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--f-mono);font-size:13px;line-height:1.65;overflow-x:auto;margin:0;white-space:pre}
+.code .c{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<a href="./" style="font-size:14px;color:var(--muted);text-decoration:none">← 編碼器工具箱</a>
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">磁性絕對式編碼器 · 雙磁軌 Nonius（游標）原理</div>
+  <h1>Nonius 絕對角度計算</h1>
+  <p class="lede">兩條極數差 1 的磁軌，各自只知道「在一對極裡的位置」。把兩者相減就知道整圈的絕對角度，再交給極數多的主軌算出精確值。下面的試算從 ADC 原始讀值開始，照 MCU 的流程一路算到角度。</p>
+</header>
+
+<section>
+  <h2>互動試算</h2>
+  <div class="bench">
+    <div class="ringbox">
+      <svg id="ring" viewBox="0 0 380 380" role="img" aria-label="雙磁軌磁環，外環為主軌，內環為 Nonius 軌，讀頭固定在正上方">
+        <g id="rot"></g>
+        <path id="arc" fill="none" stroke="var(--result)" stroke-width="3" stroke-linecap="round"/>
+        <text id="lblT" x="190" y="166" text-anchor="middle" font-size="16" font-weight="600" fill="var(--result)" font-family="var(--f-mono)">θ = 100.0°</text>
+        <polygon points="183,6 197,6 190,18" fill="var(--ink)"/>
+        <text x="204" y="16" font-size="12" fill="var(--muted)" font-family="var(--f-body)">讀頭（8 顆感測器 → 4 路訊號）</text>
+        <text id="lblM" x="190" y="190" text-anchor="middle" font-size="13" fill="var(--north)" font-family="var(--f-mono)">外環 32 對極</text>
+        <text id="lblN" x="190" y="208" text-anchor="middle" font-size="13" fill="var(--south)" font-family="var(--f-mono)">內環 31 對極</text>
+      </svg>
+      <div class="legend"><span><span class="sw" style="background:var(--north)"></span>N 極</span><span><span class="sw" style="background:var(--south)"></span>S 極</span></div>
+      <div class="controls">
+        <div class="grp">轉動</div>
+        <div class="ctl"><label for="combo">極數組合</label>
+          <select id="combo">
+            <option value="8">8 / 7（教學用）</option>
+            <option value="16">16 / 15</option>
+            <option value="32" selected>32 / 31</option>
+            <option value="64">64 / 63</option>
+          </select><span></span></div>
+        <div class="ctl"><label for="ang">實際轉角 θ</label><input type="range" id="ang" min="0" max="359.9" step="0.1" value="100"><output id="angO">100.0°</output></div>
+        <div class="ctl"><label for="angN">輸入轉角</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><input type="number" id="angN" min="0" max="359.9" step="0.1" value="100"><button type="button" id="play">自動旋轉</button></div><span></span></div>
+        <div class="ctl"><label for="spd">旋轉速度</label><input type="range" id="spd" min="2" max="90" step="1" value="20"><output id="spdO">20°/s</output></div>
+        <div class="grp">訊號誤差</div>
+        <div class="ctl"><label for="noise">ADC 雜訊</label><input type="range" id="noise" min="0" max="60" step="1" value="4"><output id="noiseO">±4</output></div>
+        <div class="ctl"><label for="offS">A_sin 偏移</label><input type="range" id="offS" min="-400" max="400" step="10" value="0"><output id="offO">0</output></div>
+        <div class="ctl"><label for="gainE">A_sin 增益誤差</label><input type="range" id="gainE" min="-30" max="30" step="1" value="0"><output id="gainO">0%</output></div>
+        <div class="ctl"><label for="err">B 軌相位誤差</label><input type="range" id="err" min="-15" max="15" step="0.5" value="0"><output id="errO">0.0°</output></div>
+        <label class="chk"><input type="checkbox" id="cal" checked>套用出廠校正（偏移、增益）</label>
+        <div class="presets">情境：<button type="button" data-p="clean">理想</button><button type="button" data-p="offset">偏移未校正</button><button type="button" data-p="noisy">雜訊大</button><button type="button" data-p="jump">k 判錯</button></div>
+      </div>
+    </div>
+
+    <div class="steps" aria-live="off">
+      <p class="note">第 2~6 步並列兩種算法：<b>理論</b>是直接把實際 θ 代進公式（沒有任何誤差），<b>ADC</b> 是 MCU 從讀值算出來的。最後一列是兩者的差。</p>
+      <div class="step"><div class="num">1</div><div><div class="t">ADC 同時取樣 4 個通道（12 位元，0 ~ 4095，中心 2048）</div>
+        <table class="adc"><tbody id="adcT"></tbody></table></div></div>
+      <div class="step"><div class="num">2</div><div><div class="t">主軌相位 φA</div><div class="v" id="s1"></div></div></div>
+      <div class="step"><div class="num">3</div><div><div class="t">Nonius 軌相位 φB</div><div class="v" id="s2"></div></div></div>
+      <div class="step"><div class="num">4</div><div><div class="t">相位差 = 粗略絕對角度 d</div><div class="v" id="s3"></div></div></div>
+      <div class="step"><div class="num">5</div><div><div class="t">判斷主軌第幾個極週期 k</div><div class="v" id="s4"></div></div></div>
+      <div class="step"><div class="num">6</div><div><div class="t">用主軌細相位算精確角度</div><div class="v" id="s5"></div></div></div>
+      <div class="final"><div><div class="t note">MCU 輸出角度</div><div class="big" id="out"></div></div><span class="status" id="st"></span></div>
+      <p class="note" id="chk"></p>
+    </div>
+
+    <div class="full">
+      <h3>ADC 示波器</h3>
+      <div class="scoperow">
+        <svg id="scope" viewBox="0 0 900 290" role="img" aria-label="最近 240 次 ADC 取樣的四個通道波形">
+          <g font-family="var(--f-body)" font-size="13">
+            <text x="0" y="24" fill="var(--north)">A 主軌</text>
+            <text x="0" y="169" fill="var(--south)">B Nonius</text>
+          </g>
+          <g font-family="var(--f-mono)" font-size="11" fill="var(--muted)" text-anchor="end">
+            <text x="92" y="16">4095</text><text x="92" y="74">2048</text><text x="92" y="132">0</text>
+            <text x="92" y="161">4095</text><text x="92" y="219">2048</text><text x="92" y="277">0</text>
+          </g>
+          <g stroke="var(--line)" fill="none">
+            <rect x="100" y="12" width="790" height="116" rx="3"/>
+            <rect x="100" y="157" width="790" height="116" rx="3"/>
+            <line x1="100" y1="70" x2="890" y2="70" stroke-dasharray="2 4"/>
+            <line x1="100" y1="215" x2="890" y2="215" stroke-dasharray="2 4"/>
+          </g>
+          <path id="tAs" fill="none" stroke="var(--north)" stroke-width="1.6"/>
+          <path id="tAc" fill="none" stroke="var(--north)" stroke-width="1.6" stroke-dasharray="5 4" opacity=".75"/>
+          <path id="tBs" fill="none" stroke="var(--south)" stroke-width="1.6"/>
+          <path id="tBc" fill="none" stroke="var(--south)" stroke-width="1.6" stroke-dasharray="5 4" opacity=".75"/>
+          <g id="dots"></g>
+        </svg>
+        <div class="liss">
+          <svg id="liss" viewBox="0 0 240 240" role="img" aria-label="主軌 A 正規化後的 sin 對 cos 李薩如圖">
+            <line x1="20" y1="120" x2="220" y2="120" stroke="var(--line)"/>
+            <line x1="120" y1="20" x2="120" y2="220" stroke="var(--line)"/>
+            <circle cx="120" cy="120" r="80" fill="none" stroke="var(--muted)" stroke-dasharray="3 4"/>
+            <g id="lissTrail"></g>
+            <line id="lissL" x1="120" y1="120" stroke="var(--result)" stroke-width="1.5"/>
+            <circle id="lissD" r="5" fill="var(--result)"/>
+            <g font-family="var(--f-mono)" font-size="11" fill="var(--muted)"><text x="222" y="114" text-anchor="end">c</text><text x="126" y="30">s</text></g>
+          </svg>
+          <p class="cap" style="text-align:center">主軌 (c, s)，虛線為理想圓。綠線的角度就是 atan2 算出的 φA。</p>
+        </div>
+      </div>
+      <p class="cap">實線 sin、虛線 cos。橫軸是取樣次序，最右邊是最新一次。按「自動旋轉」或拖動轉角，就會看到 ADC 讀值像正弦波一樣起伏：主軌每轉 1° 變化比 Nonius 軌稍快一點，兩者的相位差就這樣慢慢累積。</p>
+    </div>
+
+    <div class="full">
+      <h3>電氣相位 vs. 機械角</h3>
+      <svg id="plot" viewBox="0 0 900 250" role="img" aria-label="三條波形：主軌相位、Nonius 軌相位、相位差隨機械角變化">
+        <g font-family="var(--f-body)" font-size="13">
+          <text x="0" y="40" fill="var(--north)">φA 主軌</text>
+          <text x="0" y="110" fill="var(--south)">φB Nonius</text>
+          <text x="0" y="180" fill="var(--result)">φA − φB</text>
+        </g>
+        <g stroke="var(--line)" fill="none">
+          <rect x="100" y="12" width="790" height="50" rx="3"/>
+          <rect x="100" y="82" width="790" height="50" rx="3"/>
+          <rect x="100" y="152" width="790" height="50" rx="3"/>
+        </g>
+        <path id="pA" fill="none" stroke="var(--north)" stroke-width="1"/>
+        <path id="pB" fill="none" stroke="var(--south)" stroke-width="1"/>
+        <path id="pD" fill="none" stroke="var(--result)" stroke-width="2"/>
+        <line id="mk" y1="6" y2="208" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 4"/>
+        <g font-family="var(--f-mono)" font-size="12" fill="var(--muted)">
+          <text x="100" y="226">0°</text><text x="495" y="226" text-anchor="middle">180°</text><text x="890" y="226" text-anchor="end">360°</text>
+          <text x="495" y="244" text-anchor="middle" font-family="var(--f-body)">磁環機械角 θ</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>計算方式</h2>
+  <p>設主軌有 <code>M</code> 對極、Nonius 軌有 <code>M − 1</code> 對極。磁環轉一圈（360° 機械角），主軌的相位轉 <code>M</code> 圈，Nonius 軌轉 <code>M − 1</code> 圈。讀頭只看得到「目前在一對極裡的位置」，也就是取 mod 360 後的電氣角。</p>
+  <div class="formula">
+    φA = M·θ mod 360<br>
+    φB = (M−1)·θ mod 360<br>
+    d&nbsp; = (φA − φB) mod 360 &nbsp;&nbsp;<span class="dim">→ 數值上等於 θ（粗）</span><br>
+    k&nbsp; = round( (M·d − φA) / 360 ) mod M<br>
+    θ&nbsp; = (φA + 360·k) / M
+  </div>
+  <div class="cards">
+    <div class="card"><h3>為什麼相減會得到 θ</h3><p>M·θ − (M−1)·θ = θ。兩軌每圈只差一個週期，所以差值在整圈內只出現一次，每個角度都有唯一的值。</p></div>
+    <div class="card"><h3>k 在算什麼</h3><p>如果粗角度 d 是準的，M·d 就是主軌「沒被 mod 掉」的總相位。減掉讀到的 φA 再除以 360，剩下的整數就是主軌已經走過幾個完整週期。</p></div>
+    <div class="card"><h3>為什麼最後用 φA</h3><p>d 是兩軌相減，誤差疊加，精度較差。k 只取整數，對誤差有容忍度；真正的精度由 φA 決定，而且主軌誤差會被除以 M。</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>範例：32 / 31</h2>
+  <p>每列都用上面的公式算（不含 ADC 誤差）。主軌一個週期是 360 / 32 = 11.25°，k 就是 θ 落在第幾格。</p>
+  <div class="tablebox"><table class="data" id="ex">
+    <thead><tr><th>情況</th><th>θ 實際</th><th>φA = 32θ mod 360</th><th>φB = 31θ mod 360</th><th>d（粗）</th><th>k</th><th>θ 輸出</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="note">以 θ = 100° 手算：φA = 3200 mod 360 = 320°，φB = 3100 mod 360 = 220°，d = 100°，k = round((3200 − 320) / 360) = 8，θ = (320 + 2880) / 32 = 100°。</p>
+</section>
+
+<section>
+  <h2>誤差容許與判錯</h2>
+  <p>只要 k 算對，輸出精度只看主軌。但如果粗角度 d 的誤差讓 <code>M·d</code> 偏差超過半個週期（180° 電氣角），round 就會取到隔壁的整數，輸出會整格跳掉 360 / M 度。</p>
+  <div class="formula">容許的粗角度誤差 &lt; ±180 / M 度<br>
+  <span class="dim">8/7：±22.5°　16/15：±11.25°　32/31：±5.625°　64/63：±2.81°</span></div>
+  <div class="tablebox"><table class="data" id="errtab">
+    <thead><tr><th>32/31，θ = 100°</th><th>B 軌誤差</th><th>d（粗）</th><th>k</th><th>θ 輸出</th><th>結果</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="note">在互動試算按「k 判錯」情境就能看到同樣的跳格現象。實際晶片會檢查兩軌一致性，偵測到這種情況會回報錯誤，而不是直接輸出錯的角度。</p>
+</section>
+
+<section>
+  <h2>為什麼極數差一定是 1</h2>
+  <p>如果用 32 / 30，相位差變成 2θ，一圈內會重複兩次。θ = 50° 和 θ = 230° 的兩軌讀值完全相同，系統分不出是上半圈還是下半圈。</p>
+  <div class="tablebox"><table class="data" id="dup">
+    <thead><tr><th>32 / 30</th><th>φA = 32θ mod 360</th><th>φB = 30θ mod 360</th><th>φA − φB</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>MCU 如何經由 ADC 讀出位置</h2>
+  <p>讀頭給 MCU 的不是角度，而是類比電壓。每條磁軌下有兩組感測器，彼此錯開 1/4 對極（90° 電氣角），一組輸出 sin(φ)、一組輸出 cos(φ)。兩條磁軌共 4 路訊號，就是互動試算第 1 步的 4 個通道。</p>
+  <div class="pipe">
+    <div class="card"><span class="tag">感測</span><h3>sin / cos 電壓</h3><p>每軌兩組霍爾或 TMR，常用差動輸出消除共模雜訊。</p></div>
+    <div class="card"><span class="tag">取樣</span><h3>4 路 ADC</h3><p>sin 與 cos 必須同時取樣，觸發和 PWM 同步。</p></div>
+    <div class="card"><span class="tag">校正</span><h3>偏移、增益、相位</h3><p>出廠轉一圈量測參數，存在 Flash。</p></div>
+    <div class="card"><span class="tag">解相位</span><h3>atan2(s, c)</h3><p>得到 −180°~180°，再 mod 360 轉成 φ。</p></div>
+    <div class="card"><span class="tag">Nonius</span><h3>φA、φB → θ</h3><p>扣除兩軌安裝偏移後算 d、k、θ。</p></div>
+    <div class="card"><span class="tag">檢查</span><h3>確認可信</h3><p>振幅、k 的餘裕、角度連續性，任何一項異常就報錯。</p></div>
+  </div>
+
+  <h3>韌體範例（C）</h3>
+  <pre class="code"><span class="c">// 每條磁軌的出廠校正參數</span>
+typedef struct { float off_s, off_c, amp_s, amp_c, ph; } cal_t;
+
+static float wrap(float x){ x = fmodf(x, 360.0f); return x &lt; 0 ? x + 360.0f : x; }
+
+<span class="c">// 原始 ADC 值 → 校正 → atan2 → 電氣相位 0~360°</span>
+float track_phase(uint16_t raw_s, uint16_t raw_c, const cal_t *k, float *amp)
+{
+    float s = (raw_s - k-&gt;off_s) / k-&gt;amp_s;      <span class="c">// 去偏移、正規化振幅</span>
+    float c = (raw_c - k-&gt;off_c) / k-&gt;amp_c;
+    s = (s - c * sinf(k-&gt;ph)) / cosf(k-&gt;ph);      <span class="c">// 修正 sin/cos 不是剛好差 90°</span>
+    *amp = sqrtf(s * s + c * c);                  <span class="c">// 理想值 1.0</span>
+    return wrap(atan2f(s, c) * 57.29578f);
+}
+
+<span class="c">// 兩軌相位 → 絕對角度；回傳 0 表示 k 有足夠餘裕</span>
+int nonius(float phiA, float phiB, int M, float *theta)
+{
+    phiB = wrap(phiB - TRACK_OFFSET);             <span class="c">// 出廠量測的兩軌安裝偏移</span>
+    float d   = wrap(phiA - phiB);                <span class="c">// 粗角度</span>
+    float raw = (M * d - phiA) / 360.0f;          <span class="c">// 理想上接近整數</span>
+    int   k   = ((int)lroundf(raw) % M + M) % M;
+    float res = raw - lroundf(raw);               <span class="c">// 離最近整數多遠</span>
+    *theta = (phiA + 360.0f * k) / M;
+    return fabsf(res) &lt; 0.25f ? 0 : -1;           <span class="c">// 超過 1/4 格就警告</span>
+}
+
+<span class="c">// 由 PWM 同步觸發，4 個通道同時取樣完成後進入</span>
+void ADC_IRQHandler(void)
+{
+    float ampA, ampB, theta;
+    float phiA = track_phase(adc[0], adc[1], &amp;calA, &amp;ampA);
+    float phiB = track_phase(adc[2], adc[3], &amp;calB, &amp;ampB);
+
+    if (ampA &lt; 0.7f || ampA &gt; 1.3f || ampB &lt; 0.7f || ampB &gt; 1.3f) { fault(ENC_SIGNAL); return; }  <span class="c">// 氣隙或外部磁場</span>
+    if (nonius(phiA, phiB, 32, &amp;theta) != 0)                          { fault(ENC_NONIUS); return; }  <span class="c">// k 快判錯</span>
+    if (fabsf(wrap(theta - last + 180.0f) - 180.0f) &gt; MAX_STEP)       { fault(ENC_JUMP);   return; }  <span class="c">// 不可能的跳動</span>
+    last = theta;
+}</pre>
+
+  <div class="cards">
+    <div class="card"><h3>為什麼要 sin 和 cos</h3><p>只有 sin 時，0.5 可能是 30° 也可能是 150°。加上 cos 後，每個相位只有一組 (sin, cos)，atan2 才能分辨四個象限與旋轉方向。</p></div>
+    <div class="card"><h3>為什麼要同時取樣</h3><p>先讀 sin、隔 2 µs 再讀 cos，磁環已經轉了。關節馬達端 3000 rpm、32 對極時，2 µs 的電氣角變化約 1.15°，會直接變成角度誤差。</p></div>
+    <div class="card"><h3>校正參數怎麼來</h3><p>出廠時慢速轉一圈，記錄每個通道的最大、最小值：偏移 = (最大 + 最小) / 2，振幅 = (最大 − 最小) / 2；相位誤差用李薩如橢圓擬合求出。</p></div>
+    <div class="card"><h3>解析度</h3><p>12 位元 ADC 經 atan2 後，每個極週期約可分 10~12 位元。主軌 32 週期再多 5 位元，整圈約 15~17 位元。</p></div>
+  </div>
+  <p class="note">商用關節多用 iC-MU 這類專用晶片，類比前端、校正、atan2 與 Nonius 計算都在晶片內完成，MCU 只透過 SPI 或 BiSS 讀一個角度值。用線性霍爾或 TMR 直接接 MCU 的 ADC 成本較低，但校正與抗干擾都要自己處理。</p>
+</section>
+
+<section>
+  <h2>韌體實作要注意</h2>
+  <ul>
+    <li>所有相減都要做環繞處理：<code>((x % 360) + 360) % 360</code>。在 0° 附近，d 會在 359.9° 和 0.1° 之間跳，數學上是連續的。</li>
+    <li>k 取整後也要 <code>mod M</code>，避免 θ 接近 360° 時算出 k = M。</li>
+    <li>先做兩軌的偏移、振幅、相位校正，再做 Nonius 計算。兩軌的機械安裝偏移（track offset）也要在出廠時量測並扣掉。</li>
+    <li>加一個一致性檢查：算出的 θ 用 (M−1)θ 反推 φB，和實際讀值差太多就報錯。</li>
+    <li>偏心會讓兩軌產生不同的一次諧波誤差，是 k 判錯最常見的原因。64/63 對同心度的要求是 32/31 的兩倍。</li>
+  </ul>
+</section>
+
+</div>
+
+<script>
+const NS="http://www.w3.org/2000/svg";
+const md=x=>((x%360)+360)%360;
+const f1=x=>(Math.round(x*10)/10).toFixed(1);
+const f3=x=>(x<0?'−':'')+Math.abs(x).toFixed(3);
+const sgn=v=>(v>0?'+':v<0?'−':'')+Math.abs(v);
+const $=id=>document.getElementById(id);
+const Z=2048,G=1500,BN=240;
+
+/* pure Nonius solve for the static tables */
+function solve(M,th,eB=0){
+  const a=md(M*th), b=md((M-1)*th+eB), d=md(a-b);
+  const k=((Math.round((M*d-a)/360)%M)+M)%M, out=(a+360*k)/M;
+  const trueK=Math.floor(md(th)/(360/M)+1e-9)%M;
+  return {a,b,d,k,out,ok:k===trueK};
+}
+
+/* controls */
+const combo=$('combo'),ang=$('ang'),angN=$('angN'),spd=$('spd'),noise=$('noise'),offS=$('offS'),gainE=$('gainE'),err=$('err'),cal=$('cal'),playBtn=$('play');
+const P=()=>({M:+combo.value,th:+ang.value,eB:+err.value,nz:+noise.value,off:+offS.value,ge:+gainE.value/100,useCal:cal.checked,spd:+spd.value});
+
+/* sensor model: what the 4 ADC channels would read at angle th */
+function sample(p,th){
+  const pA=md(p.M*th), pB=md((p.M-1)*th+p.eB), r=x=>x*Math.PI/180;
+  const n=()=>p.nz?(Math.random()+Math.random()-1)*p.nz:0;
+  const cl=v=>Math.max(0,Math.min(4095,Math.round(v)));
+  return {th,pA,pB,
+    as:cl(Z+p.off+G*(1+p.ge)*Math.sin(r(pA))+n()), ac:cl(Z+G*Math.cos(r(pA))+n()),
+    bs:cl(Z+G*Math.sin(r(pB))+n()),               bc:cl(Z+G*Math.cos(r(pB))+n())};
+}
+/* MCU side: raw counts -> phases -> Nonius */
+function decode(p,sm){
+  const sa=p.useCal?(sm.as-Z-p.off)/(G*(1+p.ge)):(sm.as-Z)/G, ca=(sm.ac-Z)/G, sb=(sm.bs-Z)/G, cb=(sm.bc-Z)/G;
+  const deg=(s,c)=>md(Math.atan2(s,c)*180/Math.PI);
+  const phA=deg(sa,ca), phB=deg(sb,cb), d=md(phA-phB), rw=(p.M*d-phA)/360, kr=Math.round(rw);
+  const k=((kr%p.M)+p.M)%p.M, out=(phA+360*k)/p.M;
+  return {sa,ca,sb,cb,phA,phB,d,rw,k,res:rw-kr,out,ampA:Math.hypot(sa,ca),ampB:Math.hypot(sb,cb)};
+}
+
+/* ring + phase plot */
+const cx=190,cy=190,rot=$('rot');
+function pt(r,a){const t=a*Math.PI/180;return (cx+r*Math.sin(t)).toFixed(2)+','+(cy-r*Math.cos(t)).toFixed(2);}
+function sector(r0,r1,a0,a1){return `M${pt(r1,a0)}A${r1} ${r1} 0 0 1 ${pt(r1,a1)}L${pt(r0,a1)}A${r0} ${r0} 0 0 0 ${pt(r0,a0)}Z`;}
+function drawRing(M){
+  rot.innerHTML='';
+  [[M,140,170],[M-1,104,134]].forEach(([p,r0,r1])=>{
+    const n=p*2,s=360/n;
+    for(let i=0;i<n;i++){const e=document.createElementNS(NS,'path');e.setAttribute('d',sector(r0,r1,i*s,(i+1)*s));
+      e.setAttribute('fill',i%2?'var(--south)':'var(--north)');e.setAttribute('stroke','var(--surface)');e.setAttribute('stroke-width',M>32?'0.3':'0.6');rot.appendChild(e);}
+  });
+  const tk=document.createElementNS(NS,'line');tk.setAttribute('x1',cx);tk.setAttribute('y1',cy-100);tk.setAttribute('x2',cx);tk.setAttribute('y2',cy-60);
+  tk.setAttribute('stroke','var(--muted)');tk.setAttribute('stroke-width','1.5');rot.appendChild(tk);
+  $('lblM').textContent='外環 '+M+' 對極';$('lblN').textContent='內環 '+(M-1)+' 對極';
+  const saw=(k,y)=>{let d='';for(let j=0;j<k;j++){d+=`M${(100+790*j/k).toFixed(2)} ${y+50}L${(100+790*(j+1)/k).toFixed(2)} ${y}`;}return d;};
+  $('pA').setAttribute('d',saw(M,12));$('pB').setAttribute('d',saw(M-1,82));$('pD').setAttribute('d',saw(1,152));
+}
+
+/* sample history for the scope */
+let buf=[];
+function initBuf(){
+  const p=P(),step=p.spd/60;buf=[];
+  for(let i=0;i<BN;i++)buf.push(sample(p,md(p.th-(BN-1-i)*step)));
+}
+
+function render(){
+  const p=P(),sm=buf[buf.length-1],r=decode(p,sm),th=p.th,M=p.M;
+  rot.setAttribute('transform',`rotate(${-th} ${cx} ${cy})`);
+  const arc=$('arc');
+  if(th<0.05)arc.setAttribute('d','');else{const t=Math.min(th,359.9);arc.setAttribute('d',`M${pt(92,360-t)}A92 92 0 ${t>180?1:0} 1 ${pt(92,0)}`);}
+  $('lblT').textContent='θ = '+f1(th)+'°';
+  if(document.activeElement!==angN)angN.value=f1(th);
+  $('angO').textContent=f1(th)+'°';$('spdO').textContent=p.spd+'°/s';
+  $('noiseO').textContent='±'+p.nz;$('offO').textContent=sgn(p.off);$('gainO').textContent=sgn(+gainE.value)+'%';
+  $('errO').textContent=(p.eB>0?'+':'')+f1(p.eB)+'°';
+
+  const rows=[['A_sin',sm.as,r.sa,'var(--north)'],['A_cos',sm.ac,r.ca,'var(--north)'],['B_sin',sm.bs,r.sb,'var(--south)'],['B_cos',sm.bc,r.cb,'var(--south)']];
+  $('adcT').innerHTML=rows.map(([n,v,s,c])=>`<tr><td style="color:${c}">${n}</td><td>${String(v).padStart(4,' ')}</td><td class="barc"><div class="bar"><i style="width:${(v/4095*100).toFixed(1)}%;background:${c}"></i></div></td><td>${f3(s)}</td></tr>`).join('');
+
+  const at=x=>f1(x>180?x-360:x), wd=x=>md(x+180)-180;
+  const t=solve(M,th,0), tRw=(M*t.d-t.a)/360;
+  const row=(lab,h)=>`<div class="cmp"><span class="lab">${lab}</span><span>${h}</span></div>`;
+  const dlt=(v,extra='')=>`<div class="cmp d"><span class="lab">差</span><span class="${Math.abs(v)<0.05?'ok':'bad'}">${v>=0?'+':'−'}${Math.abs(v).toFixed(2)}°${extra}</span></div>`;
+  $('s1').innerHTML=row('理論',`${M} × ${f1(th)} = ${f1(M*th)} → mod 360 = <b class="n">${f1(t.a)}°</b>`)
+    +row('ADC',`s = ${p.useCal&&(p.off||p.ge)?`(${sm.as} − 2048 ${p.off<0?'+':'−'} ${Math.abs(p.off)}) / ${Math.round(G*(1+p.ge))}`:`(${sm.as} − 2048) / 1500`} = ${f3(r.sa)}，c = ${f3(r.ca)}<br>atan2(s, c) = ${at(r.phA)}° → <b class="n">${f1(r.phA)}°</b>`)
+    +dlt(wd(r.phA-t.a));
+  $('s2').innerHTML=row('理論',`${M-1} × ${f1(th)} = ${f1((M-1)*th)} → mod 360 = <b class="s">${f1(t.b)}°</b>`)
+    +row('ADC',`s = ${f3(r.sb)}，c = ${f3(r.cb)}<br>atan2(s, c) = ${at(r.phB)}° → <b class="s">${f1(r.phB)}°</b>`)
+    +dlt(wd(r.phB-t.b));
+  const dd=r.d-t.d;
+  $('s3').innerHTML=row('理論',`(${f1(t.a)} − ${f1(t.b)}) mod 360 = <b class="r">${f1(t.d)}°</b>`)
+    +row('ADC',`(${f1(r.phA)} − ${f1(r.phB)}) mod 360 = <b class="r">${f1(r.d)}°</b>`)
+    +dlt(wd(dd),Math.abs(dd)>180?`<span class="dim">（${f1(r.d)}° 和 ${f1(t.d)}° 在圓上只差這麼多，數字看起來差很大是 mod 360 環繞）</span>`:'');
+  const per=360/M;
+  const dk=((r.k-t.k)%M+M)%M, dks=dk>M/2?dk-M:dk;
+  $('s4').innerHTML=row('理論',`round((${M} × ${f1(t.d)} − ${f1(t.a)}) / 360) = round(${tRw.toFixed(2)}) → <b>k = ${t.k}</b>`)
+    +row('ADC',`round((${M} × ${f1(r.d)} − ${f1(r.phA)}) / 360) = round(${r.rw.toFixed(2)}) → <b>k = ${r.k}</b>`)
+    +`<div class="cmp d"><span class="lab">差</span><span class="${dk?'bad':'ok'}">${dk?`差 ${dks>0?'+':''}${dks} 格（${(dks*per).toFixed(2)}°）`:'相同'}</span></div>`
+    +`<span class="dim">每格 ${+per.toFixed(3)}°，第 ${t.k} 格 = ${f1(t.k*per)}° ~ ${f1((t.k+1)*per)}°。round 取的是最近的整數，${f1(tRw)} 和 31.99、0.01 這類值都會被拉回同一個 k（再 mod ${M}）</span>`;
+  $('s5').innerHTML=row('理論',`(${f1(t.a)} + 360 × ${t.k}) / ${M} = <b class="r">${t.out.toFixed(2)}°</b>`)
+    +row('ADC',`(${f1(r.phA)} + 360 × ${r.k}) / ${M} = <b class="r">${r.out.toFixed(2)}°</b>`)
+    +dlt(wd(r.out-t.out));
+  $('out').textContent=r.out.toFixed(2)+'°';
+  const oe=md(r.out-th+180)-180,st=$('st');
+  if(Math.abs(oe)>per/2){st.textContent=`k 判錯，偏 ${oe.toFixed(2)}°`;st.className='status bad';}
+  else{st.textContent=`與實際差 ${oe>=0?'+':''}${oe.toFixed(2)}°`;st.className='status '+(Math.abs(oe)<0.1?'ok':'bad');}
+  const aOk=a=>a>0.7&&a<1.3;
+  $('chk').innerHTML=`檢查　振幅 A ${r.ampA.toFixed(2)}、B ${r.ampB.toFixed(2)}：${aOk(r.ampA)&&aOk(r.ampB)?'<span class="ok">正常</span>':'<span class="bad">超出 0.7~1.3，報錯</span>'}　·　k 餘裕 |res| = ${Math.abs(r.res).toFixed(2)}：${Math.abs(r.res)<0.25?'<span class="ok">正常</span>':'<span class="bad">超過 0.25，警告</span>'}`;
+
+  /* scope */
+  const X=i=>(100+790*i/(BN-1)).toFixed(1), Y=(v,top)=>(top+116-116*v/4095).toFixed(1);
+  const path=(key,top)=>buf.map((s,i)=>(i?'L':'M')+X(i)+' '+Y(s[key],top)).join('');
+  $('tAs').setAttribute('d',path('as',12));$('tAc').setAttribute('d',path('ac',12));
+  $('tBs').setAttribute('d',path('bs',157));$('tBc').setAttribute('d',path('bc',157));
+  $('dots').innerHTML=[['as',12,'var(--north)'],['ac',12,'var(--north)'],['bs',157,'var(--south)'],['bc',157,'var(--south)']]
+    .map(([k,t,c])=>`<circle cx="890" cy="${Y(sm[k],t)}" r="4" fill="${c}"/>`).join('');
+
+  /* lissajous: last samples of track A */
+  const lx=c=>(120+80*c).toFixed(1), ly=s=>(120-80*s).toFixed(1);
+  let tr='';const from=Math.max(0,buf.length-120);
+  for(let i=from;i<buf.length;i++){const q=decode(p,buf[i]);tr+=`<circle cx="${lx(q.ca)}" cy="${ly(q.sa)}" r="1.6" fill="var(--north)" opacity="${(0.15+0.6*(i-from)/(buf.length-from)).toFixed(2)}"/>`;}
+  $('lissTrail').innerHTML=tr;
+  $('lissD').setAttribute('cx',lx(r.ca));$('lissD').setAttribute('cy',ly(r.sa));
+  $('lissL').setAttribute('x2',lx(r.ca));$('lissL').setAttribute('y2',ly(r.sa));
+
+  const x=100+790*th/360;$('mk').setAttribute('x1',x);$('mk').setAttribute('x2',x);
+}
+function pushAndRender(){buf.push(sample(P(),+ang.value));if(buf.length>BN)buf.shift();render();}
+
+combo.addEventListener('change',()=>{drawRing(+combo.value);initBuf();render();});
+ang.addEventListener('input',pushAndRender);
+angN.addEventListener('input',()=>{const v=parseFloat(angN.value);if(isNaN(v))return;ang.value=md(v);pushAndRender();});
+angN.addEventListener('change',()=>{angN.value=f1(+ang.value);});
+[noise,offS,gainE,err].forEach(el=>el.addEventListener('input',()=>{initBuf();render();}));
+spd.addEventListener('input',()=>{if(!playing)initBuf();render();});
+cal.addEventListener('change',render);
+
+let playing=false,last=0;
+function tick(ts){if(!playing)return;const dt=last?Math.min((ts-last)/1000,0.1):0;last=ts;ang.value=md(+ang.value+dt*(+spd.value)).toFixed(2);pushAndRender();requestAnimationFrame(tick);}
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'暫停':'自動旋轉';playBtn.classList.toggle('on',playing);last=0;if(playing)requestAnimationFrame(tick);});
+
+const presets={clean:{noise:0,offS:0,gainE:0,err:0,cal:true},offset:{noise:4,offS:300,gainE:15,err:0,cal:false},noisy:{noise:45,offS:0,gainE:0,err:0,cal:true},jump:{noise:4,offS:0,gainE:0,err:7,cal:true}};
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{const s=presets[b.dataset.p];noise.value=s.noise;offS.value=s.offS;gainE.value=s.gainE;err.value=s.err;cal.checked=s.cal;initBuf();render();}));
+
+drawRing(32);initBuf();render();
+
+/* static example tables */
+const exRows=[['零點，兩軌對齊',0],['第一格內',5],['範例',40],['手算範例',100],['半圈附近',200.5],['接近一圈，d 環繞',359.5]];
+document.querySelector('#ex tbody').innerHTML=exRows.map(([n,t])=>{const r=solve(32,t);return `<tr><td>${n}</td><td>${f1(t)}°</td><td>${f1(r.a)}°</td><td>${f1(r.b)}°</td><td>${f1(r.d)}°</td><td>${r.k}</td><td>${f1(r.out)}°</td></tr>`;}).join('');
+document.querySelector('#errtab tbody').innerHTML=[0,3,5,6,-8].map(e=>{const r=solve(32,100,e);const diff=md(r.out-100+180)-180;return `<tr><td>${e===0?'無誤差':'有誤差'}</td><td>${e>0?'+':''}${f1(e)}°</td><td>${f1(r.d)}°</td><td>${r.k}</td><td>${f1(r.out)}°</td><td style="color:var(${r.ok?'--result':'--warn'})">${r.ok?'正確':'跳 '+f1(diff)+'°'}</td></tr>`;}).join('');
+document.querySelector('#dup tbody').innerHTML=[50,230].map(t=>{const a=md(32*t),b=md(30*t);return `<tr><td>θ = ${t}°</td><td>${f1(a)}°</td><td>${f1(b)}°</td><td>${f1(md(a-b))}°</td></tr>`;}).join('');
+</script>
+
+</body>
+</html>

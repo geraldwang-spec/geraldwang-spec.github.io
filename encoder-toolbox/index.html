@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>編碼器工具箱</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: a short shelf of tool cards; each card names what the tool answers, with an analog/digital tag strip */
+:root{
+  --bg:#edf0ee; --surface:#ffffff; --ink:#18201c; --muted:#5c6b63; --line:#cfd8d2; --chip:#e4e9e6;
+  --volt:#b4521d; --code:#2a5fa8;
+  --f-display:"Chakra Petch","JetBrains Mono",ui-monospace,monospace;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1a201d; --ink:#e3e9e5; --muted:#93a39a; --line:#2c3531; --chip:#232b27;
+  --volt:#ec8a52; --code:#6ea3ee; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1a201d; --ink:#e3e9e5; --muted:#93a39a; --line:#2c3531; --chip:#232b27;
+  --volt:#ec8a52; --code:#6ea3ee; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.7;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 56px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+h1{font-family:var(--f-display);font-weight:600;font-size:clamp(26px,4.5vw,34px);margin:0;text-wrap:balance}
+h2{font-size:18px;margin:0}
+p{margin:0;max-width:66ch}
+.muted{color:var(--muted)}
+.shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
+a.tool{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;color:inherit;text-decoration:none;transition:border-color .15s}
+a.tool:hover{border-color:var(--muted)}
+a.tool:focus-visible{outline:2px solid var(--code);outline-offset:2px}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-family:var(--f-mono);font-size:12px;padding:1px 8px;border-radius:4px;background:var(--chip);color:var(--muted)}
+.tag.v{color:var(--volt)} .tag.c{color:var(--code)}
+ul{margin:0;padding-left:1.1em;font-size:14px;color:var(--muted)}
+.open{font-size:14px;color:var(--code);margin-top:auto}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:6px;justify-content:center}
+@media (prefers-reduced-motion:reduce){a.tool{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:6px">
+    <h1>編碼器工具箱</h1>
+    <p class="muted">機器人關節磁性編碼器的學習與計算工具。點卡片打開工具。</p>
+  </header>
+
+  <div class="shelf">
+    <a class="tool" href="nonius.html">
+      <div class="tags"><span class="tag">32/31 · 64/63</span><span class="tag v">sin / cos</span><span class="tag c">atan2 → θ</span></div>
+      <h2>Nonius 絕對角度計算</h2>
+      <p>雙磁軌從 ADC 讀值一路算到絕對角度，理論值和實測值並排比較。</p>
+      <ul><li>磁環轉動動畫、ADC 示波器、李薩如圖</li><li>加入雜訊、偏移、增益誤差，觀察 k 判錯</li><li>MCU 韌體流程與 C 範例</li></ul>
+      <span class="open">開啟 →</span>
+    </a>
+    <a class="tool" href="adc.html">
+      <div class="tags"><span class="tag">8 ~ 16 bit</span><span class="tag v">Vin · Vref</span><span class="tag c">讀值 · LSB</span></div>
+      <h2>ADC 電壓換算器</h2>
+      <p>電壓換成 ADC 數字、數字換回電壓，看一格多大、量化誤差多少。</p>
+      <ul><li>二進位、十六進位、量程尺、轉換階梯圖</li><li>超過量程的截斷</li><li>比例式霍爾感測器的中心值</li></ul>
+      <span class="open">開啟 →</span>
+    </a>
+    <div class="empty">
+      <h2 class="muted" style="font-size:16px">下一個工具</h2>
+      <p class="muted" style="font-size:14px">之後做的新工具會加在這裡。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
