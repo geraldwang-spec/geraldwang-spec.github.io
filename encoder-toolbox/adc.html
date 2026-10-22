@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
@@ -73,7 +75,7 @@ ul{margin:0;padding-left:1.2em} li+li{margin-top:4px}
 <body>
 
 <div class="wrap">
-<a href="./" style="font-size:14px;color:var(--muted);text-decoration:none">← 編碼器工具箱</a>
+<a class="backlink" href="./#encoder" style="font-size:14px;color:var(--muted);text-decoration:none">← 回到工具站</a>
   <header style="display:flex;flex-direction:column;gap:6px">
     <h1>ADC 電壓換算器</h1>
     <p class="muted">輸入電壓、參考電壓和解析度，看 ADC 會讀到哪個數字、二進位長什麼樣、一格代表多少電壓，以及量化誤差。<span class="v">橘色是類比電壓</span>，<span class="c">藍色是數位讀值</span>。</p>

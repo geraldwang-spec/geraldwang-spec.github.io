@@ -3,74 +3,293 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>編碼器工具箱</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<title>機器人關節工具站</title>
+<meta name="description" content="機器人關節相關的學習與計算工具：編碼器、ADC、Nonius 絕對角度。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=DM+Sans:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
 <style>
-/* Layout: a short shelf of tool cards; each card names what the tool answers, with an analog/digital tag strip */
+/* Layout: fixed left rail (categories with their tools nested) + main column with a sticky top bar.
+   Main shows either an overview (hero with diagonal grid + tool cards) or an embedded tool viewer. Dark slate, one sky-blue accent. */
 :root{
-  --bg:#edf0ee; --surface:#ffffff; --ink:#18201c; --muted:#5c6b63; --line:#cfd8d2; --chip:#e4e9e6;
-  --volt:#b4521d; --code:#2a5fa8;
-  --f-display:"Chakra Petch","JetBrains Mono",ui-monospace,monospace;
-  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --bg:#0f1319; --rail:#0b0f14; --panel:#141b24; --card:rgba(22,31,43,.72);
+  --line:#1f2d40; --line-2:#2a4060; --ink:#e7eef6; --text:#9db7cc; --muted:#64809a;
+  --accent:#4a9ee8; --accent-ink:#0a1a2c; --accent-soft:rgba(74,158,232,.13);
+  --f-display:"Outfit","Noto Sans TC",system-ui,sans-serif;
+  --f-body:"DM Sans","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --rail-w:280px; --top-h:60px;
+  --silk:cubic-bezier(.22,.8,.24,1);
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#121614; --surface:#1a201d; --ink:#e3e9e5; --muted:#93a39a; --line:#2c3531; --chip:#232b27;
-  --volt:#ec8a52; --code:#6ea3ee; color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#121614; --surface:#1a201d; --ink:#e3e9e5; --muted:#93a39a; --line:#2c3531; --chip:#232b27;
-  --volt:#ec8a52; --code:#6ea3ee; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.7;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 56px}
-.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
-h1{font-family:var(--f-display);font-weight:600;font-size:clamp(26px,4.5vw,34px);margin:0;text-wrap:balance}
-h2{font-size:18px;margin:0}
-p{margin:0;max-width:66ch}
-.muted{color:var(--muted)}
-.shelf{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:16px}
-a.tool{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;color:inherit;text-decoration:none;transition:border-color .15s}
-a.tool:hover{border-color:var(--muted)}
-a.tool:focus-visible{outline:2px solid var(--code);outline-offset:2px}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--f-body);font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+h1,h2,h3{font-family:var(--f-display);color:var(--ink);margin:0;line-height:1.25;text-wrap:balance}
+
+.app{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);min-height:100%}
+
+/* rail */
+.rail{position:sticky;top:0;height:100vh;height:100dvh;overflow-y:auto;background:var(--rail);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;gap:22px;padding:20px 14px calc(20px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 8px;text-decoration:none}
+.brand .mark{width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center;flex:none}
+.brand .mark svg{width:20px;height:20px}
+.brand b{font-family:var(--f-display);font-weight:700;color:var(--ink);font-size:17px;letter-spacing:.01em;line-height:1.2}
+.brand small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.navlbl{font-size:11px;letter-spacing:.12em;color:var(--muted);padding:0 10px;margin-bottom:6px}
+nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.item{width:100%;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;border:1px solid transparent;background:none;cursor:pointer;text-align:left;
+  color:var(--text);text-decoration:none;transition:background .25s var(--silk),color .25s var(--silk)}
+.item:hover{background:rgba(255,255,255,.035);color:var(--ink)}
+.item svg{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.item .lbl{flex:1;min-width:0}
+.item .count{font-family:var(--f-mono);font-size:11px;color:var(--muted);border:1px solid var(--line-2);border-radius:999px;padding:0 7px;line-height:18px}
+.item .chev{width:14px;height:14px;transition:transform .3s var(--silk)}
+.item[aria-current="true"]{background:var(--accent-soft);color:var(--ink);border-color:rgba(74,158,232,.25)}
+.item[aria-current="true"] > svg:first-child{color:var(--accent)}
+.cat[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.sub{margin:2px 0 6px 19px!important;padding-left:10px!important;border-left:1px solid var(--line)}
+.sub .item{padding:6px 10px;font-size:14px}
+.sub .item .dot{width:6px;height:6px;border-radius:50%;background:var(--line-2);flex:none}
+.sub .item[aria-current="true"]{background:none;border-color:transparent;color:var(--accent)}
+.sub .item[aria-current="true"] .dot{background:var(--accent)}
+.railfoot{margin-top:auto;border-top:1px solid var(--line);padding:14px 10px 0;font-size:12px;color:var(--muted);line-height:1.6}
+.railfoot code{font-family:var(--f-mono);color:var(--text)}
+
+/* main */
+.main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;height:var(--top-h);display:flex;align-items:center;gap:12px;
+  padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px));
+  background:rgba(15,19,25,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.menu{display:none;width:38px;height:38px;border-radius:8px;border:1px solid var(--line-2);background:none;cursor:pointer;place-items:center}
+.menu svg{width:18px;height:18px;stroke:var(--ink);fill:none;stroke-width:1.8;stroke-linecap:round}
+.crumbs{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden}
+.crumbs a{color:var(--muted);text-decoration:none}
+.crumbs a:hover{color:var(--ink)}
+.crumbs .sep{color:var(--line-2)}
+.crumbs .cur{color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.top .act{margin-left:auto;display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);background:none;color:var(--text);
+  font-size:14px;text-decoration:none;cursor:pointer;white-space:nowrap;transition:border-color .25s var(--silk),color .25s var(--silk),background .25s var(--silk)}
+.btn:hover{border-color:var(--accent);color:var(--ink)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+.btn.pri:hover{background:#63aef0;color:var(--accent-ink)}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.view{padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px));padding-block:32px 64px;max-width:1240px;width:100%}
+
+.hero{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:40px 36px;display:flex;flex-direction:column;gap:14px}
+.hero::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:36px 36px;
+  transform:skewY(-8deg) scale(1.3);transform-origin:top right;opacity:.55;
+  -webkit-mask-image:radial-gradient(ellipse 70% 90% at 100% 0%,#000 10%,transparent 70%);mask-image:radial-gradient(ellipse 70% 90% at 100% 0%,#000 10%,transparent 70%)}
+.hero > *{position:relative}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;color:var(--accent)}
+.hero h1{font-size:clamp(28px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+.hero p{max-width:62ch;font-size:16px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.stat{border:1px solid var(--line-2);border-radius:8px;padding:6px 12px;font-size:13px;background:rgba(15,19,25,.5)}
+.stat b{font-family:var(--f-display);color:var(--ink);font-size:16px;margin-right:4px}
+
+.sect{margin-top:36px;display:flex;flex-direction:column;gap:16px}
+.secthead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.secthead h2{font-size:20px}
+.secthead a{font-size:14px;color:var(--accent);text-decoration:none}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:16px}
+.card{display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;
+  transition:border-color .35s var(--silk),transform .35s var(--silk)}
+.card:hover{border-color:var(--line-2);transform:translateY(-2px)}
+.card .ic{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);display:grid;place-items:center}
+.card .ic svg{width:21px;height:21px;stroke:var(--accent);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.card h3{font-size:18px}
+.card p{margin:0;font-size:14.5px}
 .tags{display:flex;gap:6px;flex-wrap:wrap}
-.tag{font-family:var(--f-mono);font-size:12px;padding:1px 8px;border-radius:4px;background:var(--chip);color:var(--muted)}
-.tag.v{color:var(--volt)} .tag.c{color:var(--code)}
-ul{margin:0;padding-left:1.1em;font-size:14px;color:var(--muted)}
-.open{font-size:14px;color:var(--code);margin-top:auto}
-.empty{border:1px dashed var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:6px;justify-content:center}
-@media (prefers-reduced-motion:reduce){a.tool{transition:none}}
+.tag{font-family:var(--f-mono);font-size:11.5px;color:var(--text);border:1px solid var(--line-2);border-radius:5px;padding:0 7px;line-height:20px}
+.card ul{margin:0;padding-left:1.1em;font-size:13.5px;color:var(--muted)}
+.card ul li+li{margin-top:2px}
+.card .acts{display:flex;gap:8px;margin-top:auto;padding-top:4px;flex-wrap:wrap}
+.card.ghost{background:none;border-style:dashed;justify-content:center;color:var(--muted)}
+.card.ghost:hover{transform:none}
+.card.ghost code{font-family:var(--f-mono);color:var(--text);font-size:13px}
+.catlist{font-size:14px;color:var(--muted);margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.catlist button{background:none;border:0;padding:0;color:var(--text);cursor:pointer;text-align:left}
+.catlist button:hover{color:var(--accent)}
+
+/* tool viewer */
+.viewer{flex:1;display:flex;flex-direction:column;min-height:0}
+.viewer iframe{flex:1;width:100%;border:0;display:block;background:var(--bg);min-height:calc(100vh - var(--top-h));min-height:calc(100dvh - var(--top-h))}
+
+/* mobile */
+.scrim{display:none}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{position:fixed;inset:0 auto 0 0;width:min(86vw,var(--rail-w));z-index:40;transform:translateX(-102%);transition:transform .4s var(--silk);
+    padding-top:calc(20px + env(safe-area-inset-top,0px))}
+  .app.open .rail{transform:none}
+  .app.open .scrim{display:block;position:fixed;inset:0;z-index:30;background:rgba(5,8,12,.6);border:0}
+  .menu{display:grid}
+  .top{top:env(safe-area-inset-top,0px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .view{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+  .hero{padding:28px 20px}
+  .top .act .txt{display:none}
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:25;background:var(--bg)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+<script src="catalog.js"></script>
 </head>
 <body>
-
-<div class="wrap">
-  <header style="display:flex;flex-direction:column;gap:6px">
-    <h1>編碼器工具箱</h1>
-    <p class="muted">機器人關節磁性編碼器的學習與計算工具。點卡片打開工具。</p>
-  </header>
-
-  <div class="shelf">
-    <a class="tool" href="nonius.html">
-      <div class="tags"><span class="tag">32/31 · 64/63</span><span class="tag v">sin / cos</span><span class="tag c">atan2 → θ</span></div>
-      <h2>Nonius 絕對角度計算</h2>
-      <p>雙磁軌從 ADC 讀值一路算到絕對角度，理論值和實測值並排比較。</p>
-      <ul><li>磁環轉動動畫、ADC 示波器、李薩如圖</li><li>加入雜訊、偏移、增益誤差，觀察 k 判錯</li><li>MCU 韌體流程與 C 範例</li></ul>
-      <span class="open">開啟 →</span>
+<div class="app" id="app">
+  <aside class="rail" id="rail" aria-label="工具選單">
+    <a class="brand" href="#home" data-go="home">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#0a1a2c" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M20 12h-3M12 20v-3M4 12h3"/></svg></span>
+      <span><b>機器人關節工具站</b><small>學習與計算工具</small></span>
     </a>
-    <a class="tool" href="adc.html">
-      <div class="tags"><span class="tag">8 ~ 16 bit</span><span class="tag v">Vin · Vref</span><span class="tag c">讀值 · LSB</span></div>
-      <h2>ADC 電壓換算器</h2>
-      <p>電壓換成 ADC 數字、數字換回電壓，看一格多大、量化誤差多少。</p>
-      <ul><li>二進位、十六進位、量程尺、轉換階梯圖</li><li>超過量程的截斷</li><li>比例式霍爾感測器的中心值</li></ul>
-      <span class="open">開啟 →</span>
-    </a>
-    <div class="empty">
-      <h2 class="muted" style="font-size:16px">下一個工具</h2>
-      <p class="muted" style="font-size:14px">之後做的新工具會加在這裡。</p>
-    </div>
+    <nav>
+      <div class="navlbl">總覽</div>
+      <ul><li><a class="item" href="#home" data-go="home" id="navHome"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">所有工具</span></a></li></ul>
+    </nav>
+    <nav>
+      <div class="navlbl">大項</div>
+      <ul id="navCats"></ul>
+    </nav>
+    <div class="railfoot">新增大項或工具：編輯 <code>catalog.js</code>，左側選單和卡片會自動出現。</div>
+  </aside>
+  <button class="scrim" id="scrim" aria-label="關閉選單"></button>
+
+  <div class="main">
+    <header class="top">
+      <button class="menu" id="menuBtn" aria-label="開啟選單" aria-controls="rail" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="act" id="topAct"></div>
+    </header>
+    <div id="content"></div>
   </div>
 </div>
 
+<script>
+(function(){
+  const CATALOG = window.CATALOG || [];
+  const ICONS = {
+    encoder:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 3v2M21 12h-2M12 21v-2M3 12h2M18.4 5.6l-1.4 1.4M18.4 18.4l-1.4-1.4M5.6 18.4l1.4-1.4M5.6 5.6l1.4 1.4"/>',
+    chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
+    motor:'<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 12h5M7 7V5M12 7V5"/>',
+    gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+    wave:'<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-2"/>',
+    ruler:'<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
+    box:'<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/>'
+  };
+  const ico=n=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||ICONS.box}</svg>`;
+  const chev='<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  const ext='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+  const back='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const $=id=>document.getElementById(id);
+  const total=CATALOG.reduce((n,c)=>n+c.tools.length,0);
+  const open=new Set(CATALOG.map(c=>c.id));
+
+  function buildNav(){
+    $('navCats').innerHTML=CATALOG.map(c=>`
+      <li>
+        <button class="item cat" type="button" data-cat="${esc(c.id)}" aria-expanded="${open.has(c.id)}">${ico(c.icon)}<span class="lbl">${esc(c.name)}</span><span class="count">${c.tools.length}</span>${chev}</button>
+        <ul class="sub" ${open.has(c.id)?'':'hidden'}>
+          <li><a class="item" href="#${esc(c.id)}" data-nav="${esc(c.id)}"><span class="dot"></span><span class="lbl">總覽</span></a></li>
+          ${c.tools.map(t=>`<li><a class="item" href="#${esc(c.id)}/${esc(t.id)}" data-nav="${esc(c.id)}/${esc(t.id)}"><span class="dot"></span><span class="lbl">${esc(t.name)}</span></a></li>`).join('')}
+        </ul>
+      </li>`).join('');
+    $('navCats').querySelectorAll('.cat').forEach(b=>b.addEventListener('click',()=>{
+      const id=b.dataset.cat,cur=parse();
+      if(cur.cat!==id){location.hash=id;open.add(id);return;}
+      open.has(id)?open.delete(id):open.add(id);
+      b.setAttribute('aria-expanded',open.has(id));b.nextElementSibling.hidden=!open.has(id);
+    }));
+  }
+
+  function toolCard(c,t){
+    return `<article class="card">
+      <div class="ic">${ico(c.icon)}</div>
+      <div class="tags">${(t.tags||[]).map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div>
+      <h3>${esc(t.name)}</h3>
+      <p>${esc(t.summary||'')}</p>
+      ${t.points&&t.points.length?`<ul>${t.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
+      <div class="acts"><a class="btn pri" href="#${esc(c.id)}/${esc(t.id)}">開啟工具</a><a class="btn" href="${esc(t.href)}" target="_blank" rel="noopener">${ext}新分頁</a></div>
+    </article>`;
+  }
+  const ghost=`<div class="card ghost"><h3 style="font-size:16px;color:var(--text)">新增工具</h3><p>在 <code>catalog.js</code> 這個大項的 <code>tools</code> 裡加一筆，就會出現在這裡和左側選單。</p></div>`;
+
+  function renderHome(){
+    $('crumbs').innerHTML=`<span class="cur">所有工具</span>`;$('topAct').innerHTML='';
+    $('content').innerHTML=`<div class="view">
+      <section class="hero">
+        <span class="eyebrow">ROBOT JOINT TOOLKIT</span>
+        <h1>機器人關節工具站</h1>
+        <p>把做關節時會用到的計算和學習工具放在同一個地方。左側選擇大項，裡面列出所有工具，點了直接在這裡使用。</p>
+        <div class="stats"><span class="stat"><b>${CATALOG.length}</b>個大項</span><span class="stat"><b>${total}</b>個工具</span></div>
+      </section>
+      ${CATALOG.map(c=>`<section class="sect">
+        <div class="secthead"><h2>${esc(c.name)}</h2><a href="#${esc(c.id)}">大項總覽 →</a></div>
+        <div class="cards">${c.tools.map(t=>toolCard(c,t)).join('')}</div>
+      </section>`).join('')}
+    </div>`;
+  }
+
+  function renderCat(c){
+    $('crumbs').innerHTML=`<a href="#home">所有工具</a><span class="sep">/</span><span class="cur">${esc(c.name)}</span>`;$('topAct').innerHTML='';
+    $('content').innerHTML=`<div class="view">
+      <section class="hero">
+        <span class="eyebrow">大項</span>
+        <h1>${esc(c.name)}</h1>
+        <p>${esc(c.summary||'')}</p>
+        <div class="stats"><span class="stat"><b>${c.tools.length}</b>個工具</span></div>
+      </section>
+      <section class="sect">
+        <div class="secthead"><h2>工具</h2></div>
+        <div class="cards">${c.tools.map(t=>toolCard(c,t)).join('')}${ghost}</div>
+      </section>
+    </div>`;
+  }
+
+  function renderTool(c,t){
+    $('crumbs').innerHTML=`<a href="#home">所有工具</a><span class="sep">/</span><a href="#${esc(c.id)}">${esc(c.name)}</a><span class="sep">/</span><span class="cur">${esc(t.name)}</span>`;
+    $('topAct').innerHTML=`<a class="btn" href="#${esc(c.id)}" aria-label="回到${esc(c.name)}">${back}<span class="txt">返回</span></a><a class="btn" href="${esc(t.href)}" target="_blank" rel="noopener" aria-label="在新分頁開啟">${ext}<span class="txt">新分頁</span></a>`;
+    const src=t.href+(t.href.includes('?')?'&':'?')+'embed=1&theme=dark';
+    const fr=$('content').querySelector('iframe');
+    if(fr&&fr.dataset.tool===c.id+'/'+t.id)return;
+    $('content').innerHTML=`<div class="viewer"><iframe src="${esc(src)}" title="${esc(t.name)}" data-tool="${esc(c.id)}/${esc(t.id)}"></iframe></div>`;
+  }
+
+  function parse(){
+    const h=decodeURIComponent(location.hash.replace(/^#/,''));
+    const [cat,tool]=h.split('/');return {cat:cat||'home',tool};
+  }
+  function route(){
+    const {cat,tool}=parse();
+    const c=CATALOG.find(x=>x.id===cat), t=c&&tool?c.tools.find(x=>x.id===tool):null;
+    if(t){open.add(c.id);renderTool(c,t);}
+    else if(c){open.add(c.id);renderCat(c);}
+    else renderHome();
+    buildNav();
+    const key=t?c.id+'/'+t.id:c?c.id:'home';
+    document.querySelectorAll('[data-nav]').forEach(a=>a.setAttribute('aria-current',a.dataset.nav===key));
+    document.querySelectorAll('.cat').forEach(b=>b.setAttribute('aria-current',!t&&c&&b.dataset.cat===c.id?'true':'false'));
+    $('navHome').setAttribute('aria-current',key==='home');
+    document.title=(t?t.name+' · ':c?c.name+' · ':'')+'機器人關節工具站';
+    closeMenu();
+    if(!t)window.scrollTo(0,0);
+  }
+
+  const app=$('app'),menuBtn=$('menuBtn');
+  function closeMenu(){app.classList.remove('open');menuBtn.setAttribute('aria-expanded','false');}
+  menuBtn.addEventListener('click',()=>{const o=app.classList.toggle('open');menuBtn.setAttribute('aria-expanded',o);});
+  $('scrim').addEventListener('click',closeMenu);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
+  window.addEventListener('hashchange',route);
+  route();
+})();
+</script>
 </body>
 </html>
