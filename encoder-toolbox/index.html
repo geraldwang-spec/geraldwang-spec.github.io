@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>機器人關節工具站</title>
+<meta http-equiv="Cache-Control" content="no-cache">
 <meta name="description" content="機器人關節相關的學習與計算工具：編碼器、ADC、Nonius 絕對角度。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -155,7 +156,7 @@ nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:25;background:var(--bg)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-<script src="catalog.js"></script>
+<script src="catalog.js?v=20261022-1324"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -280,6 +281,16 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     $('content').innerHTML=`<div class="viewer"><iframe src="${esc(src)}" title="${esc(t.name)}" data-tool="${esc(c.id)}/${esc(t.id)}"></iframe></div>`;
   }
 
+  function renderMissing(c,tool){
+    $('crumbs').innerHTML=`<a href="#home">所有工具</a><span class="sep">/</span><a href="#${esc(c.id)}">${esc(c.name)}</a><span class="sep">/</span><span class="cur">${esc(tool)}</span>`;$('topAct').innerHTML='';
+    $('content').innerHTML=`<div class="view"><section class="hero">
+      <span class="eyebrow">找不到這個工具</span>
+      <h1>「${esc(tool)}」不在目前的工具目錄裡</h1>
+      <p>可能是剛新增的工具，而瀏覽器還在用舊的目錄。重新整理一次通常就會出現。</p>
+      <div class="stats"><button class="btn pri" type="button" id="reloadBtn">重新整理</button><a class="btn" href="#${esc(c.id)}">回到${esc(c.name)}</a></div>
+    </section></div>`;
+    $('reloadBtn').addEventListener('click',()=>location.reload());
+  }
   function parse(){
     const h=decodeURIComponent(location.hash.replace(/^#/,''));
     const [cat,tool]=h.split('/');return {cat:cat||'home',tool};
@@ -288,6 +299,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     const {cat,tool}=parse();
     const c=CATALOG.find(x=>x.id===cat), t=c&&tool?c.tools.find(x=>x.id===tool):null;
     if(t){open.add(c.id);renderTool(c,t);}
+    else if(c&&tool){open.add(c.id);renderMissing(c,tool);}
     else if(c){open.add(c.id);renderCat(c);}
     else renderHome();
     buildNav();

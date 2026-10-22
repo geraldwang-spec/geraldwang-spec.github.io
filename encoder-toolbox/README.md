@@ -27,3 +27,7 @@
 工具頁面可在 `<head>` 加入讀取 `?embed=1&theme=dark` 的小段 script（參考 `nonius.html`），在工具站內嵌時會自動換成深色並隱藏返回連結。
 
 線上版：https://geraldwang-spec.github.io/encoder-toolbox/
+
+## 更新目錄後
+
+改完 `catalog.js` 後，把 `index.html` 裡 `catalog.js?v=...` 的版本號改成新的（例如日期加時間），瀏覽器才會抓到新目錄。
