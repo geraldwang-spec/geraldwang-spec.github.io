@@ -404,7 +404,7 @@ function drawRing(M){
   [[M,140,170],[M-1,104,134]].forEach(([p,r0,r1])=>{
     const n=p*2,s=360/n;
     for(let i=0;i<n;i++){const e=document.createElementNS(NS,'path');e.setAttribute('d',sector(r0,r1,i*s,(i+1)*s));
-      e.setAttribute('fill',i%2?'var(--south)':'var(--north)');e.setAttribute('stroke','var(--surface)');e.setAttribute('stroke-width',M>32?'0.3':'0.6');rot.appendChild(e);}
+      e.setAttribute('fill',i%2?'var(--north)':'var(--south)');e.setAttribute('stroke','var(--surface)');e.setAttribute('stroke-width',M>32?'0.3':'0.6');rot.appendChild(e);}
   });
   const tk=document.createElementNS(NS,'line');tk.setAttribute('x1',cx);tk.setAttribute('y1',cy-100);tk.setAttribute('x2',cx);tk.setAttribute('y2',cy-60);
   tk.setAttribute('stroke','var(--muted)');tk.setAttribute('stroke-width','1.5');rot.appendChild(tk);
