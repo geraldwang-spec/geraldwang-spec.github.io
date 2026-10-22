@@ -59,6 +59,10 @@ td:first-child,th:first-child{text-align:left}
 td{font-family:var(--f-mono)} td:first-child{font-family:var(--f-body)}
 tr:last-child td{border-bottom:none}
 .note{font-size:14px;color:var(--muted)}
+#phtbl td:last-child{text-align:left;font-family:var(--f-body)}
+.loc{display:block;font-family:var(--f-body);font-size:11.5px;color:var(--muted)}
+.formula{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--f-mono);font-size:15px;line-height:2;overflow-x:auto}
+.dim{color:var(--muted)}
 code{font-family:var(--f-mono);background:var(--chip);padding:1px 6px;border-radius:4px;font-size:.92em}
 </style>
 </head>
@@ -132,10 +136,38 @@ code{font-family:var(--f-mono);background:var(--chip);padding:1px 6px;border-rad
 <section>
   <h2>主軌讀頭在不同位置的讀值</h2>
   <div class="tablebox"><table>
-    <thead><tr><th>sin+ 的位置</th><th>sin+</th><th>sin−</th><th>A_sin = 2048 + (sin+ − sin−)</th><th>cos+</th><th>cos−</th><th>A_cos</th></tr></thead>
+    <thead><tr><th>sin+ 的位置</th><th>sin+</th><th>cos+</th><th>sin−</th><th>cos−</th><th>A_sin = 2048 + (sin+ − sin−)</th><th>A_cos = 2048 + (cos+ − cos−)</th></tr></thead>
     <tbody id="tbl"></tbody>
   </table></div>
-  <p class="note">相減的結果再加上 2048，是模擬差動放大器把訊號移到 ADC 中心再輸出的做法，所以 A_sin、A_cos 會在 548 到 3548 之間擺動。</p>
+  <p class="note">每格下面的小字是那顆感測器所在的位置。4 顆彼此相隔 1/4 對極，剛好是半個極寬，所以 sin+ 在交界時，cos+、cos− 一定落在極的正中間。相減的結果再加上 2048，是模擬差動放大器把訊號移到 ADC 中心再輸出的做法，所以 A_sin、A_cos 會在 548 到 3548 之間擺動。</p>
+</section>
+
+<section>
+  <h2>sin 和 cos 差 90° 是什麼意思</h2>
+  <p>2048 不是相位，而是「訊號 = 0」的零點，也就是 ADC 量程的中心。sin 和 cos 兩個通道都會經過 2048，只是經過的時間點不同。相差 90° 指的是：cos 的波形和 sin 完全一樣，只是提早了 1/4 個週期。</p>
+  <div class="formula">
+    A_sin = 2048 + 1500 × sin φ<br>
+    A_cos = 2048 + 1500 × cos φ = 2048 + 1500 × sin(φ + 90°)<br>
+    <span class="dim">→ cos 通道就是 sin 通道往前移 90° 的版本；這 90° 來自 cos 感測器放在 sin 感測器前面 1/4 對極</span><br>
+    <br>
+    sin²φ + cos²φ = 1 <span class="dim">→ 當 sin φ = 0（A_sin = 2048）時，cos φ 一定是 ±1（A_cos = 3548 或 548）</span>
+  </div>
+  <div class="bench">
+    <div class="svgbox">
+      <svg id="wave" viewBox="0 0 680 292" role="img" aria-label="A_sin 與 A_cos 隨主軌相位 φ 變化的波形，兩者相差 90 度"></svg>
+    </div>
+    <p class="note">紫色是 A_sin、綠色是 A_cos，虛線是 2048。圓點是各自經過 2048 的位置：sin 在 0°、180°，cos 在 90°、270°，兩者永遠不會同時經過。上方的括號標出兩個波峰之間的 90°。</p>
+  </div>
+  <div class="tablebox"><table>
+    <thead><tr><th>主軌相位 φ</th><th>sin φ</th><th>A_sin</th><th>cos φ</th><th>A_cos</th><th style="text-align:left">說明</th></tr></thead>
+    <tbody id="phtbl"></tbody>
+  </table></div>
+  <div class="cards">
+    <div class="card"><h3>2048 是零點</h3><p>讀到 2048 代表那一路訊號是 0：感測器站在交界上，或兩顆差動感測器看到的磁場剛好一樣。它本身不帶任何角度資訊。</p></div>
+    <div class="card"><h3>90° 是位置差</h3><p>cos 感測器放在 sin 感測器前面 1/4 對極。磁條滑過時，cos 會比 sin 早 1/4 個週期遇到同一個狀態，這個時間差就是 90° 相位差。</p></div>
+    <div class="card"><h3>一個在 2048，另一個在極值</h3><p>這是相差 90° 的特徵。因為 sin² + cos² = 1，兩者不會同時是 0，atan2 隨時都算得出角度。兩路同時接近 2048，代表訊號不見了，韌體會報錯。</p></div>
+  </div>
+  <p class="note">可以想成兩個人在同一條跑道上繞圈，一個領先另一個四分之一圈。2048 是跑道上的起跑線，兩人都會經過，但永遠不會同時經過；真正代表 90° 的是兩人之間那四分之一圈的距離。</p>
 </section>
 
 <section>
@@ -190,9 +222,33 @@ document.querySelectorAll('[data-th]').forEach(b=>b.addEventListener('click',()=
 function tick(t){if(!on)return;const dt=last?Math.min((t-last)/1000,.1):0;last=t;sl.value=md(+sl.value+dt*4).toFixed(3);upd(+sl.value);requestAnimationFrame(tick);}
 pb.addEventListener('click',()=>{on=!on;last=0;pb.textContent=on?'暫停':'自動旋轉';pb.classList.toggle('on',on);if(on)requestAnimationFrame(tick);});
 upd(0);
+const LOC={0:'S/N 交界',90:'S 極中間',180:'N/S 交界',270:'N 極中間'};
 $('tbl').innerHTML=[['S 極中間',90],['S/N 交界',0],['N 極中間',270],['N/S 交界',180]].map(([n,phi])=>{
   const sp=read(phi,0),sm=read(phi,180),cp=read(phi,90),cm=read(phi,270);
-  return `<tr><td>${n}</td><td>${sp}</td><td>${sm}</td><td>${2048+sp-sm}</td><td>${cp}</td><td>${cm}</td><td>${2048+cp-cm}</td></tr>`;}).join('');
+  const cell=(v,p)=>`${v}<span class="loc">${LOC[md(p)]}</span>`;
+  return `<tr><td>${n}</td><td>${cell(sp,phi)}</td><td>${cell(cp,phi+90)}</td><td>${cell(sm,phi+180)}</td><td>${cell(cm,phi+270)}</td><td><b>${2048+sp-sm}</b></td><td><b>${2048+cp-cm}</b></td></tr>`;}).join('');
+
+(function(){
+  const L=70,R=640,T=56,B=240,X=p=>L+(R-L)*p/360,Y=v=>B-(B-T)*(v-548)/3000;
+  let h='';
+  [548,2048,3548].forEach(v=>{h+=`<line x1="${L}" y1="${Y(v)}" x2="${R}" y2="${Y(v)}" stroke="var(--line)" ${v===2048?'stroke-dasharray="5 4" stroke="var(--muted)"':''}/>`+
+    `<text class="tm" x="${L-8}" y="${Y(v)+4}" text-anchor="end">${v}</text>`;});
+  [0,90,180,270,360].forEach(p=>{h+=`<line x1="${X(p)}" y1="${B}" x2="${X(p)}" y2="${B+5}" stroke="var(--muted)"/><text class="tm" x="${X(p)}" y="${B+20}" text-anchor="middle">${p}°</text>`;});
+  h+=`<text class="ts" x="${(L+R)/2}" y="${B+40}" text-anchor="middle">主軌相位 φ</text>`;
+  const path=f=>{let d='';for(let p=0;p<=360;p+=3){d+=(p?'L':'M')+X(p).toFixed(1)+' '+Y(2048+1500*f(p*Math.PI/180)).toFixed(1);}return d;};
+  h+=`<path d="${path(Math.sin)}" fill="none" stroke="var(--sin)" stroke-width="2.5"/><path d="${path(Math.cos)}" fill="none" stroke="var(--cos)" stroke-width="2.5"/>`;
+  [0,180,360].forEach(p=>{h+=`<circle cx="${X(p)}" cy="${Y(2048)}" r="5" fill="var(--sin)"/>`;});
+  [90,270].forEach(p=>{h+=`<circle cx="${X(p)}" cy="${Y(2048)}" r="5" fill="var(--cos)"/>`;});
+  const yb=T-14;
+  h+=`<path d="M${X(0)} ${yb+8} V${yb} H${X(90)} V${yb+8}" fill="none" stroke="var(--ink)" stroke-width="1"/><text class="th" x="${X(45)}" y="${yb-6}" text-anchor="middle">差 90°</text>`;
+  h+=`<text class="ts" x="${X(0)}" y="${yb-6}" text-anchor="middle" style="fill:var(--cos)">cos 最大</text><text class="ts" x="${X(90)}" y="${yb-6}" text-anchor="middle" style="fill:var(--sin)">sin 最大</text>`;
+  h+=`<text class="ts" x="${R-4}" y="${Y(3548)-6}" text-anchor="end"><tspan style="fill:var(--sin)">— A_sin</tspan>　<tspan style="fill:var(--cos)">— A_cos</tspan></text>`;
+  $('wave').innerHTML=h;
+  const rows=[[0,'sin 在零點，cos 在最大'],[45,'兩者一樣大'],[90,'sin 在最大，cos 在零點'],[180,'sin 在零點，cos 在最小'],[270,'sin 在最小，cos 在零點']];
+  $('phtbl').innerHTML=rows.map(([p,t])=>{const sv=Math.sin(p*Math.PI/180),cv=Math.cos(p*Math.PI/180),f=v=>(Math.abs(v)<1e-9?0:v).toFixed(3).replace('-','−');
+    const a=Math.round(2048+1500*sv),c=Math.round(2048+1500*cv);
+    return `<tr><td>${p}°</td><td>${f(sv)}</td><td>${a===2048?'<b>2048</b>':a}</td><td>${f(cv)}</td><td>${c===2048?'<b>2048</b>':c}</td><td>${t}</td></tr>`;}).join('');
+})();
 </script>
 </body>
 </html>
