@@ -28,6 +28,14 @@ window.CATALOG = [
         points: ["主軌與 Nonius 軌的讀頭動作動畫", "sin+ / sin− / cos+ / cos− 即時讀值", "S 中間、N 中間、交界的讀值對照表"]
       },
       {
+        id: "atan2",
+        name: "atan2 單位圓",
+        href: "atan2.html",
+        summary: "拖動單位圓上的點，看 sin、cos 怎麼用 atan2 變成角度，以及 atan(s ÷ c) 在哪裡會算錯。",
+        tags: ["atan2(s, c)", "象限", "−180 ~ 180°"],
+        points: ["可拖動的單位圓，即時顯示角度", "atan 與 atan2 對照、除以零的情況", "從 ADC 讀值直接算角度、C 範例"]
+      },
+      {
         id: "nonius",
         name: "Nonius 絕對角度計算",
         href: "nonius.html",

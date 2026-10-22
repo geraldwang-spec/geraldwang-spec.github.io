@@ -160,7 +160,7 @@ button.on{border-color:var(--result);color:var(--result)}
       <p class="note">第 2~6 步並列兩種算法：<b>理論</b>是直接把實際 θ 代進公式（沒有任何誤差），<b>ADC</b> 是 MCU 從讀值算出來的。最後一列是兩者的差。</p>
       <div class="step"><div class="num">1</div><div><div class="t">ADC 同時取樣 4 個通道（12 位元，0 ~ 4095，中心 2048）</div><div class="t" style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px"><a class="more" href="index.html#encoder/sensors" target="_top">4 個通道從哪來：8 顆感測器的排列 →</a><a class="more" href="index.html#encoder/adc" target="_top">讀值怎麼換算電壓 →</a></div>
         <table class="adc"><tbody id="adcT"></tbody></table></div></div>
-      <div class="step"><div class="num">2</div><div><div class="t">主軌相位 φA <a class="more" href="#normalize" style="font-size:13px;margin-left:6px">2048 和 1500 怎麼來 →</a></div><div class="v" id="s1"></div></div></div>
+      <div class="step"><div class="num">2</div><div><div class="t">主軌相位 φA <a class="more" href="#normalize" style="font-size:13px;margin-left:6px">2048 和 1500 怎麼來 →</a><a class="more" href="index.html#encoder/atan2" target="_top" style="font-size:13px;margin-left:10px">atan2 是什麼 →</a></div><div class="v" id="s1"></div></div></div>
       <div class="step"><div class="num">3</div><div><div class="t">Nonius 軌相位 φB</div><div class="v" id="s2"></div></div></div>
       <div class="step"><div class="num">4</div><div><div class="t">相位差 = 粗略絕對角度 d</div><div class="v" id="s3"></div></div></div>
       <div class="step"><div class="num">5</div><div><div class="t">判斷主軌第幾個極週期 k</div><div class="v" id="s4"></div></div></div>

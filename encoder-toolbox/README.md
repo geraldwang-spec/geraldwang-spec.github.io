@@ -5,6 +5,7 @@
 - `index.html`：工具站首頁（左側選單 + 工具卡片，工具直接在頁面內開啟）
 - `catalog.js`：工具目錄。新增大項或工具只要改這個檔案
 - `sensors.html`：讀頭與磁軌感測器（8 顆差動霍爾的排列與讀值）
+- `atan2.html`：atan2 單位圓（sin、cos 怎麼變成角度）
 - `nonius.html`：Nonius 雙磁軌絕對角度計算
 - `adc.html`：ADC 電壓換算器
 
