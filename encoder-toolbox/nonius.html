@@ -101,6 +101,8 @@ button.on{border-color:var(--result);color:var(--result)}
 :focus-visible{outline:2px solid var(--result);outline-offset:2px}
 .presets{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
 .chk{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.more{color:var(--result);text-decoration:none;border-bottom:1px dashed currentColor}
+.more:hover{border-bottom-style:solid}
 .chk input{accent-color:var(--result);width:16px;height:16px}
 .code{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--f-mono);font-size:13px;line-height:1.65;overflow-x:auto;margin:0;white-space:pre}
 .code .c{color:var(--muted)}
@@ -156,7 +158,7 @@ button.on{border-color:var(--result);color:var(--result)}
 
     <div class="steps" aria-live="off">
       <p class="note">第 2~6 步並列兩種算法：<b>理論</b>是直接把實際 θ 代進公式（沒有任何誤差），<b>ADC</b> 是 MCU 從讀值算出來的。最後一列是兩者的差。</p>
-      <div class="step"><div class="num">1</div><div><div class="t">ADC 同時取樣 4 個通道（12 位元，0 ~ 4095，中心 2048）</div>
+      <div class="step"><div class="num">1</div><div><div class="t">ADC 同時取樣 4 個通道（12 位元，0 ~ 4095，中心 2048）</div><div class="t" style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px"><a class="more" href="index.html#encoder/sensors" target="_top">4 個通道從哪來：8 顆感測器的排列 →</a><a class="more" href="index.html#encoder/adc" target="_top">讀值怎麼換算電壓 →</a></div>
         <table class="adc"><tbody id="adcT"></tbody></table></div></div>
       <div class="step"><div class="num">2</div><div><div class="t">主軌相位 φA</div><div class="v" id="s1"></div></div></div>
       <div class="step"><div class="num">3</div><div><div class="t">Nonius 軌相位 φB</div><div class="v" id="s2"></div></div></div>
