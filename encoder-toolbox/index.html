@@ -40,6 +40,21 @@ h1,h2,h3{font-family:var(--f-display);color:var(--ink);margin:0;line-height:1.25
 .brand .mark svg{width:20px;height:20px}
 .brand b{font-family:var(--f-display);font-weight:700;color:var(--ink);font-size:17px;letter-spacing:.01em;line-height:1.2}
 .brand small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.railhead{display:flex;align-items:center;gap:6px}
+.railhead .brand{flex:1;min-width:0}
+.collapse{flex:none;width:32px;height:32px;border-radius:8px;border:1px solid transparent;background:none;cursor:pointer;display:grid;place-items:center;color:var(--muted);
+  transition:border-color .25s var(--silk),color .25s var(--silk)}
+.collapse:hover{border-color:var(--line-2);color:var(--ink)}
+.collapse svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.app{transition:grid-template-columns .4s var(--silk)}
+@media (min-width:901px){
+  .app.collapsed{grid-template-columns:68px minmax(0,1fr)}
+  .app.collapsed .rail{padding-left:16px;padding-right:16px;overflow:hidden}
+  .app.collapsed .rail > :not(.railhead),.app.collapsed .collapse,.app.collapsed .brand > span:not(.mark){display:none}
+  .app.collapsed .brand{padding:0}
+  .app.collapsed .brand .mark{transition:transform .25s var(--silk),box-shadow .25s var(--silk)}
+  .app.collapsed .brand:hover .mark{transform:scale(1.06);box-shadow:0 0 0 4px var(--accent-soft)}
+}
 .navlbl{font-size:11px;letter-spacing:.12em;color:var(--muted);padding:0 10px;margin-bottom:6px}
 nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
 .item{width:100%;display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;border:1px solid transparent;background:none;cursor:pointer;text-align:left;
@@ -145,10 +160,13 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 <body>
 <div class="app" id="app">
   <aside class="rail" id="rail" aria-label="工具選單">
-    <a class="brand" href="#home" data-go="home">
-      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#0a1a2c" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M20 12h-3M12 20v-3M4 12h3"/></svg></span>
-      <span><b>機器人關節工具站</b><small>學習與計算工具</small></span>
-    </a>
+    <div class="railhead">
+      <a class="brand" href="#home" id="brand">
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#0a1a2c" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M20 12h-3M12 20v-3M4 12h3"/></svg></span>
+        <span><b>機器人關節工具站</b><small>學習與計算工具</small></span>
+      </a>
+      <button class="collapse" id="collapseBtn" type="button" aria-label="收合側邊欄" title="收合側邊欄"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M16 10l-2 2 2 2"/></svg></button>
+    </div>
     <nav>
       <div class="navlbl">總覽</div>
       <ul><li><a class="item" href="#home" data-go="home" id="navHome"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">所有工具</span></a></li></ul>
@@ -286,6 +304,17 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   function closeMenu(){app.classList.remove('open');menuBtn.setAttribute('aria-expanded','false');}
   menuBtn.addEventListener('click',()=>{const o=app.classList.toggle('open');menuBtn.setAttribute('aria-expanded',o);});
   $('scrim').addEventListener('click',closeMenu);
+
+  const desk=window.matchMedia('(min-width:901px)'),brand=$('brand'),colBtn=$('collapseBtn');
+  function setCollapsed(on){
+    app.classList.toggle('collapsed',on);
+    brand.setAttribute('aria-label',on?'展開側邊欄':'機器人關節工具站');
+    brand.title=on?'展開側邊欄':'';
+    try{localStorage.setItem('railCollapsed',on?'1':'0');}catch(e){}
+  }
+  try{if(localStorage.getItem('railCollapsed')==='1')setCollapsed(true);}catch(e){}
+  colBtn.addEventListener('click',()=>{if(desk.matches){setCollapsed(true);$('brand').focus();}else closeMenu();});
+  brand.addEventListener('click',e=>{if(desk.matches&&app.classList.contains('collapsed')){e.preventDefault();setCollapsed(false);colBtn.focus();}});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
   window.addEventListener('hashchange',route);
   route();
