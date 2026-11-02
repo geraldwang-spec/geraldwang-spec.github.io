@@ -59,7 +59,8 @@
 <script>
 let rows=[[0.5,0.25,790],[1,0.37,526],[2,0.56,351],[3,0.71,277],[5,0.95,205],[6,1.06,185],[10,1.44,137],[18,2.02,97]];
 const conAt=f=>num('kc')*Math.sqrt(f);
-function combos(cable,con,asm){return [cable+con+asm,cable+con+2*asm,cable+2*con+asm,cable+2*con+2*asm];}
+// 與原 Excel 公式相同：F=線材+組裝+接頭、G=線材+組裝+接頭×2、H=線材+組裝×2+接頭、I=線材+組裝×2+接頭×2
+function combos(cable,con,asm){return [cable+asm+con,cable+asm+2*con,cable+2*asm+con,cable+2*asm+2*con];}
 function interp(f){
   const s=rows.filter(r=>!isNaN(r[0])&&!isNaN(r[1])).slice().sort((a,b)=>a[0]-b[0]);
   if(!s.length)return [NaN,''];
