@@ -57,7 +57,7 @@ window.CATALOG = [
     id: "bench",
     name: "硬體量測計算",
     icon: "chip",
-    summary: "硬體驗證和韌體開發常用的小計算：頻率誤差、電壓容差、量測統計、RF 線損、影像取樣框座標、MCU 計時器設定。",
+    summary: "硬體驗證和韌體開發常用的小計算：頻率誤差、電壓容差、量測統計、RF 線損、影像取樣框座標、MCU 計時器設定、電池續航。",
     tools: [
       {
         id: "freq",
@@ -106,6 +106,14 @@ window.CATALOG = [
         summary: "NXP KL27 的 PIT 計時器要多久觸發一次，LDVAL 填多少；也能從 LDVAL 算回週期。",
         tags: ["KL27", "PIT", "LDVAL hex"],
         points: ["LDVAL = 週期 × 時脈 − 1", "四捨五入後的實際週期與誤差", "附 C 初始化範例"]
+      },
+      {
+        id: "battery",
+        name: "電池續航計算",
+        href: "battery.html",
+        summary: "輸入電池容量、耗電流、滿電和斷電電壓，算出可以用多久，以及每個電量 % 對應的電壓。",
+        tags: ["mAh", "續航時間", "電量 % ↔ 電壓"],
+        points: ["容量 ÷ 電流 = 可用時間", "1% / 5% / 10% 電壓與剩餘時間表", "線性或鋰電池放電曲線"]
       }
     ]
   }

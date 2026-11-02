@@ -17,6 +17,7 @@
 - `cable.html`：RF Cable Loss（線材 + 接頭 + 組裝）
 - `roi.html`：影像取樣範圍座標
 - `pit.html`：KL27 PIT LDVAL 計算
+- `battery.html`：電池續航（容量、耗電流、每個 % 的電壓）
 
 ## 新增大項
 
