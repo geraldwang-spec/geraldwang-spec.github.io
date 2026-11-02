@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>取樣範圍座標計算</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="bench.css?v=20261102">
+<style>td input[type=text]{width:7em;font-size:14px;padding:3px 6px;font-family:var(--f-body)} td input.s{width:5em}</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#bench">← 回到工具站</a>
+  <header>
+    <h1>取樣範圍座標計算</h1>
+    <p class="muted">影像上放幾個正方形取樣框：給解析度、框的大小和位置比例，算出框的中心點和左上角座標。點表格的一列，下方預覽會用那一列的解析度畫出所有框。</p>
+  </header>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2>取樣框</h2>
+      <div class="row"><button type="button" class="chipbtn" id="std">套用 1920×1080 五點</button><button type="button" class="chipbtn" id="cp">複製表格</button></div></div>
+    <div class="tbl"><table>
+      <thead>
+        <tr><th>名稱</th><th>長 (px)</th><th>寬 (px)</th><th>取樣範圍</th><th>X 比例</th><th>Y 比例</th><th>中間點 X</th><th>中間點 Y</th><th>左上 X</th><th>左上 Y</th><th>近焦下限</th><th>近焦上限</th><th>遠焦下限</th><th>遠焦上限</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div class="row"><button type="button" class="chipbtn" id="add">＋ 新增一列</button></div>
+    <p class="cap">中間點 = 長（寬）× 比例，左上 = 中間點 − 取樣範圍 ÷ 2。比例 0.5 是畫面正中央，0.2 / 0.8 是靠近四個角。近焦、遠焦上下限只是一起記錄，不參與計算。</p>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2 id="pvTitle">預覽</h2><span class="cap" id="warn"></span></div>
+    <div class="svgbox"><svg id="pv" viewBox="0 0 960 540" role="img" aria-label="影像畫面與取樣框位置預覽"></svg></div>
+  </div>
+</div>
+
+<script src="bench.js?v=20261102"></script>
+<script>
+const COLS=['name','w','h','size','rx','ry','nl','nh','fl','fh'];
+const mk=(name,w,h,size,rx,ry,nl=30,nh=200,fl=30,fh=200)=>({name,w,h,size,rx,ry,nl,nh,fl,fh});
+const STD=()=>[mk('0-中間座標',1920,1080,100,.5,.5,30,200,35,200),mk('1-左上座標',1920,1080,100,.2,.2),mk('2-右上座標',1920,1080,100,.8,.2),mk('3-左下座標',1920,1080,100,.2,.8),mk('4-右下座標',1920,1080,100,.8,.8)];
+let rows=STD();rows[0].w=222; // 原 Excel 第 0 列的長是 222
+let sel=1;
+function geo(r){const cx=r.w*r.rx,cy=r.h*r.ry;return {cx,cy,x:cx-r.size/2,y:cy-r.size/2};}
+function drawRows(){
+  $('rows').innerHTML=rows.map((r,i)=>`<tr data-row="${i}"${i===sel?' class="sel"':''}>
+    <td><input type="text" data-i="${i}" data-k="name" value="${esc(r.name)}" aria-label="名稱"></td>
+    ${['w','h','size','rx','ry'].map(k=>`<td><input type="number" class="s" step="${k[0]==='r'?0.05:1}" data-i="${i}" data-k="${k}" value="${r[k]}" aria-label="${k}"></td>`).join('')}
+    <td id="cx${i}"></td><td id="cy${i}"></td><td id="x${i}"></td><td id="y${i}"></td>
+    ${['nl','nh','fl','fh'].map(k=>`<td><input type="number" class="s" data-i="${i}" data-k="${k}" value="${r[k]}" aria-label="${k}"></td>`).join('')}
+    <td><button type="button" class="chipbtn" data-del="${i}" aria-label="刪除第 ${i+1} 列">✕</button></td></tr>`).join('');
+  calc();
+}
+function calc(){
+  rows.forEach((r,i)=>{const g=geo(r);
+    $('cx'+i).textContent=fmt(g.cx,2);$('cy'+i).textContent=fmt(g.cy,2);
+    $('x'+i).innerHTML=`<b class="r">${fmt(g.x,2)}</b>`;$('y'+i).innerHTML=`<b class="r">${fmt(g.y,2)}</b>`;});
+  preview();
+}
+function preview(){
+  const base=rows[sel]||rows[0];const s=$('pv');
+  if(!base||!(base.w>0)||!(base.h>0)){s.innerHTML='';$('pvTitle').textContent='預覽';$('warn').textContent='';return;}
+  const W=base.w,H=base.h;
+  s.setAttribute('viewBox',`-20 -20 ${960+40} ${960*H/W+40}`);
+  const k=960/W;
+  let h=`<rect x="0" y="0" width="${960}" height="${H*k}" fill="var(--chip)" stroke="var(--line)"/>`;
+  for(const f of [.2,.5,.8]){h+=`<line x1="${W*f*k}" y1="0" x2="${W*f*k}" y2="${H*k}" stroke="var(--line)" stroke-dasharray="4 6"/><line x1="0" y1="${H*f*k}" x2="960" y2="${H*f*k}" stroke="var(--line)" stroke-dasharray="4 6"/>`;}
+  const bad=[];
+  rows.forEach((r,i)=>{if(r.w!==W||r.h!==H)return;const g=geo(r),on=i===sel;
+    const out=g.x<0||g.y<0||g.x+r.size>W||g.y+r.size>H;if(out)bad.push(r.name||('#'+(i+1)));
+    const col=out?'var(--warn)':on?'var(--res)':'var(--hi)';
+    h+=`<rect x="${g.x*k}" y="${g.y*k}" width="${r.size*k}" height="${r.size*k}" fill="${col}" fill-opacity=".14" stroke="${col}" stroke-width="${on?2.5:1.5}"/>`+
+       `<circle cx="${g.cx*k}" cy="${g.cy*k}" r="3" fill="${col}"/>`+
+       `<text x="${g.x*k}" y="${g.y*k-6}" font-size="13" fill="${col}" font-family="var(--f-mono)">${esc(r.name)} (${fmt(g.x,1)}, ${fmt(g.y,1)})</text>`;});
+  s.innerHTML=h;
+  $('pvTitle').textContent=`預覽：${fmt(W)} × ${fmt(H)}`;
+  $('warn').innerHTML=bad.length?`<span class="bad">超出畫面：${bad.map(esc).join('、')}</span>`:'';
+}
+$('rows').addEventListener('input',e=>{const t=e.target,i=t.dataset.i;if(i==null)return;rows[+i][t.dataset.k]=t.dataset.k==='name'?t.value:parseFloat(t.value);calc();});
+$('rows').addEventListener('focusin',e=>{const tr=e.target.closest('tr');if(!tr)return;const i=+tr.dataset.row;if(i!==sel){sel=i;document.querySelectorAll('#rows tr').forEach(x=>x.classList.toggle('sel',+x.dataset.row===sel));preview();}});
+$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!=null){rows.splice(+d,1);sel=Math.min(sel,rows.length-1);drawRows();return;}
+  const tr=e.target.closest('tr');if(tr){sel=+tr.dataset.row;document.querySelectorAll('#rows tr').forEach(x=>x.classList.toggle('sel',+x.dataset.row===sel));preview();}});
+$('add').addEventListener('click',()=>{const l=rows[rows.length-1]||mk('',1920,1080,100,.5,.5);rows.push({...l,name:rows.length+'-新座標'});sel=rows.length-1;drawRows();});
+$('std').addEventListener('click',()=>{rows=STD();sel=0;drawRows();});
+$('cp').addEventListener('click',e=>copyText(['名稱\t長\t寬\t取樣範圍\tX比例\tY比例\t中間點X\t中間點Y\t左上X\t左上Y\t近焦下限\t近焦上限\t遠焦下限\t遠焦上限',
+  ...rows.map(r=>{const g=geo(r);return [r.name,r.w,r.h,r.size,r.rx,r.ry,+g.cx.toFixed(3),+g.cy.toFixed(3),+g.x.toFixed(3),+g.y.toFixed(3),r.nl,r.nh,r.fl,r.fh].join('\t');})].join('\n'),e.target));
+drawRows();
+</script>
+</body>
+</html>

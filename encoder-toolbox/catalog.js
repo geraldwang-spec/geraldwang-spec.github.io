@@ -52,5 +52,61 @@ window.CATALOG = [
         points: ["二進位、十六進位、量程尺、轉換階梯圖", "超過量程的截斷", "比例式霍爾感測器的中心值"]
       }
     ]
+  },
+  {
+    id: "bench",
+    name: "硬體量測計算",
+    icon: "chip",
+    summary: "硬體驗證和韌體開發常用的小計算：頻率誤差、電壓容差、量測統計、RF 線損、影像取樣框座標、MCU 計時器設定。",
+    tools: [
+      {
+        id: "freq",
+        name: "頻率 Trim 與 PPM",
+        href: "freq.html",
+        summary: "量測頻率和目標頻率差多少，換成 2^20 基準的 trim value，以及多筆量測的 PPM 誤差。",
+        tags: ["trim value", "PPM", "2^20"],
+        points: ["trim =（量測 ÷ 目標 − 1）× 2^20", "多筆頻率一次算 PPM", "設定 ±ppm 規格自動判定 PASS / FAIL"]
+      },
+      {
+        id: "voltage",
+        name: "電壓容差計算",
+        href: "voltage.html",
+        summary: "電源軌 ±% 的上下限，以及電壓降到某個百分比時的 max / min 範圍。",
+        tags: ["±5%", "High / Low", "電壓下降"],
+        points: ["單一電壓上下限與公式", "多個電源軌一次列表", "下降百分比對照表，可複製到 Excel"]
+      },
+      {
+        id: "stats",
+        name: "量測統計 3σ",
+        href: "stats.html",
+        summary: "貼上一串量測值，算最大、最小、平均、標準差和平均 ± 3σ 上下限。",
+        tags: ["STDEV", "±3σ", "異常值"],
+        points: ["直接從 Excel 貼上一整欄", "k 倍數可調，標出超出範圍的點", "散佈圖看每一筆量測"]
+      },
+      {
+        id: "cable",
+        name: "RF Cable Loss 計算",
+        href: "cable.html",
+        summary: "依線材衰減規格、線長、接頭和組裝損耗，算出各頻率的總 loss。",
+        tags: ["dB/m", "接頭 0.06√f", "沃肯線材"],
+        points: ["接頭 1~2 個 × 組裝 1~2 處的四種組合", "任意頻率用規格表內插", "規格表可編輯、新增"]
+      },
+      {
+        id: "roi",
+        name: "取樣範圍座標計算",
+        href: "roi.html",
+        summary: "影像上的正方形取樣框：從解析度、框大小和位置比例算出中心點與左上角座標。",
+        tags: ["1920×1080", "ROI", "左上座標"],
+        points: ["中間、四角五個取樣框", "畫面預覽，標出超出畫面的框", "近焦 / 遠焦上下限一起記錄"]
+      },
+      {
+        id: "pit",
+        name: "KL27 PIT LDVAL 計算",
+        href: "pit.html",
+        summary: "NXP KL27 的 PIT 計時器要多久觸發一次，LDVAL 填多少；也能從 LDVAL 算回週期。",
+        tags: ["KL27", "PIT", "LDVAL hex"],
+        points: ["LDVAL = 週期 × 時脈 − 1", "四捨五入後的實際週期與誤差", "附 C 初始化範例"]
+      }
+    ]
   }
 ];

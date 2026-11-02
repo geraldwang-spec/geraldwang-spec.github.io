@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RF Cable Loss 計算</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="bench.css?v=20261102">
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#bench">← 回到工具站</a>
+  <header>
+    <h1>RF Cable Loss 計算</h1>
+    <p class="muted">依線材規格書的衰減值（dB/m），加上接頭和組裝損耗，算出整條線在各頻率的總 loss。預設值是沃肯線材的規格。</p>
+  </header>
+
+  <div class="top">
+    <div class="panel">
+      <div class="field"><label for="len">線長</label>
+        <div class="row"><input type="number" id="len" step="1" min="0" value="30"><span class="unit">cm</span></div></div>
+      <div class="field"><label for="f">使用頻率</label>
+        <div class="row"><input type="number" id="f" step="0.01" min="0" value="5.56"><span class="unit">GHz</span>
+          <button type="button" class="chipbtn" data-f="2.44">2.44</button><button type="button" class="chipbtn" data-f="5.56">5.56</button><button type="button" class="chipbtn" data-f="6.5">6.5</button></div></div>
+      <div class="field"><label for="kc">接頭 loss 係數（loss = 係數 × √f）</label>
+        <div class="row"><input type="number" id="kc" step="0.01" value="0.06"><span class="unit">dB/√GHz</span></div></div>
+      <div class="field"><label for="asm">組裝 loss（每處）</label>
+        <div class="row"><input type="number" id="asm" step="0.01" value="0.12"><span class="unit">dB</span></div></div>
+    </div>
+    <div class="panel" aria-live="polite">
+      <h2 id="atTitle">在使用頻率的總 loss</h2>
+      <dl class="kv">
+        <dt>線材衰減（內插）</dt><dd id="att"></dd>
+        <dt>線材 loss</dt><dd id="cl"></dd>
+        <dt>接頭 loss（每個）</dt><dd id="con"></dd>
+        <dt>接頭 ×1 + 組裝 ×1</dt><dd><b class="r" id="t11"></b></dd>
+        <dt>接頭 ×1 + 組裝 ×2</dt><dd><b class="r" id="t12"></b></dd>
+        <dt>接頭 ×2 + 組裝 ×1</dt><dd><b class="r" id="t21"></b></dd>
+        <dt>接頭 ×2 + 組裝 ×2</dt><dd><b class="r" id="t22"></b></dd>
+      </dl>
+      <p class="cap" id="note"></p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2>線材規格表</h2><button type="button" class="chipbtn" id="cp">複製表格</button></div>
+    <div class="tbl"><table>
+      <thead><tr><th>頻率 (GHz)</th><th>衰減 (dB/m)</th><th>平均功率 (W)</th><th>線材 loss</th><th>接頭1+組裝1</th><th>接頭1+組裝2</th><th>接頭2+組裝1</th><th>接頭2+組裝2</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div class="row"><button type="button" class="chipbtn" id="add">＋ 新增一列</button>
+      <label class="lbl" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="perRow">接頭 loss 改用各列自己的頻率計算</label></div>
+    <p class="cap">線材 loss = 衰減 (dB/m) ÷ 100 × 線長 (cm)。預設接頭 loss 都用上方的使用頻率計算（和原本 Excel 相同）；勾選後每一列用該列頻率。單位都是 dB。</p>
+  </div>
+</div>
+
+<script src="bench.js?v=20261102"></script>
+<script>
+let rows=[[0.5,0.25,790],[1,0.37,526],[2,0.56,351],[3,0.71,277],[5,0.95,205],[6,1.06,185],[10,1.44,137],[18,2.02,97]];
+const conAt=f=>num('kc')*Math.sqrt(f);
+function combos(cable,con,asm){return [cable+con+asm,cable+con+2*asm,cable+2*con+asm,cable+2*con+2*asm];}
+function interp(f){
+  const s=rows.filter(r=>!isNaN(r[0])&&!isNaN(r[1])).slice().sort((a,b)=>a[0]-b[0]);
+  if(!s.length)return [NaN,''];
+  if(s.length===1)return [s[0][1],'只有一列規格'];
+  let i=s.findIndex(r=>r[0]>=f);
+  let tag='';
+  if(i===-1){i=s.length-1;tag='超出規格表範圍，用最後兩列外插';}
+  else if(i===0){if(s[0][0]===f)return [s[0][1],''];i=1;tag='低於規格表範圍，用前兩列外插';}
+  const [f0,a0]=s[i-1],[f1,a1]=s[i];
+  return [a0+(a1-a0)*(f-f0)/(f1-f0),tag];
+}
+function drawRows(){
+  $('rows').innerHTML=rows.map((r,i)=>`<tr>${[0,1,2].map(k=>`<td><input type="number" step="0.01" data-i="${i}" data-k="${k}" value="${r[k]}" aria-label="第 ${i+1} 列"></td>`).join('')}
+    <td id="c${i}"></td><td id="a${i}"></td><td id="b${i}"></td><td id="d${i}"></td><td id="e${i}"></td>
+    <td><button type="button" class="chipbtn" data-del="${i}" aria-label="刪除第 ${i+1} 列">✕</button></td></tr>`).join('');
+  calc();
+}
+let table=[];
+function calc(){
+  const len=num('len'),f=num('f'),asm=num('asm'),per=$('perRow').checked;
+  table=rows.map((r,i)=>{
+    const cable=r[1]/100*len,con=conAt(per?r[0]:f),c=combos(cable,con,asm);
+    $('c'+i).textContent=fmt(cable,3);
+    ['a','b','d','e'].forEach((k,j)=>$(k+i).innerHTML=`<b class="r">${fmt(c[j],3)}</b>`);
+    return [r[0],r[1],r[2],cable,...c];
+  });
+  const [att,tag]=interp(f),cable=att/100*len,con=conAt(f),c=combos(cable,con,asm);
+  $('atTitle').textContent=`${fmt(f,3)} GHz、${fmt(len)} cm 的總 loss`;
+  $('att').textContent=fmt(att,4)+' dB/m';
+  $('cl').textContent=`${fmt(att,4)} ÷ 100 × ${fmt(len)} = ${fmt(cable,4)} dB`;
+  $('con').textContent=`${fmt(num('kc'),4)} × √${fmt(f,3)} = ${fmt(con,4)} dB`;
+  ['t11','t12','t21','t22'].forEach((id,j)=>$(id).textContent=fmt(c[j],4)+' dB');
+  $('note').textContent=(tag?tag+'。':'')+'線材衰減在規格表兩點之間用線性內插。';
+}
+$('rows').addEventListener('input',e=>{const t=e.target;if(t.dataset.i==null)return;rows[+t.dataset.i][+t.dataset.k]=parseFloat(t.value);calc();});
+$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d==null)return;rows.splice(+d,1);drawRows();});
+$('add').addEventListener('click',()=>{rows.push([NaN,NaN,NaN]);drawRows();});
+['len','f','kc','asm'].forEach(id=>$(id).addEventListener('input',calc));
+$('perRow').addEventListener('change',calc);
+document.querySelectorAll('[data-f]').forEach(b=>b.addEventListener('click',()=>{$('f').value=b.dataset.f;calc();}));
+$('cp').addEventListener('click',e=>copyText(['頻率GHz\t衰減dB/m\t功率W\t線材loss\t接頭1+組裝1\t接頭1+組裝2\t接頭2+組裝1\t接頭2+組裝2',...table.map(r=>r.map(x=>isNaN(x)?'':+x.toFixed(4)).join('\t'))].join('\n'),e.target));
+drawRows();
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>頻率 Trim 與 PPM</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="bench.css?v=20261102">
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#bench">← 回到工具站</a>
+  <header>
+    <h1>頻率 Trim 與 PPM</h1>
+    <p class="muted">量到的頻率和目標頻率差多少：換成 2<sup>20</sup> 為基準的 trim value，以及多筆量測的 PPM 誤差。</p>
+  </header>
+
+  <div class="top">
+    <div class="panel">
+      <h2>Trim value</h2>
+      <div class="field"><label for="fm">量測頻率</label>
+        <div class="row"><input type="number" id="fm" step="0.001" value="2440.9"><span class="unit">MHz</span></div></div>
+      <div class="field"><label for="ft">目標頻率</label>
+        <div class="row"><input type="number" id="ft" step="0.001" value="2441"><span class="unit">MHz</span>
+          <button type="button" class="chipbtn" data-ft="2402">2402</button><button type="button" class="chipbtn" data-ft="2441">2441</button><button type="button" class="chipbtn" data-ft="2480">2480</button></div></div>
+      <p class="cap">兩個頻率單位相同就好（Excel 裡兩邊都乘 10<sup>6</sup>，會互相抵消）。</p>
+    </div>
+    <div class="panel" aria-live="polite">
+      <div class="big"><span class="n" id="trim">—</span><span class="u">trim value</span></div>
+      <div class="formula" id="tf"></div>
+      <dl class="kv">
+        <dt>取整數</dt><dd id="tr"></dd>
+        <dt>頻率差</dt><dd id="df"></dd>
+        <dt>誤差</dt><dd id="tp"></dd>
+        <dt>方向</dt><dd id="dir"></dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2>PPM 誤差（多筆）</h2>
+      <div class="row"><label class="lbl" for="lim">規格 ±</label><input type="number" id="lim" step="0.1" value="20" style="width:6em"><span class="unit">ppm</span></div></div>
+    <div class="tbl"><table>
+      <thead><tr><th>#</th><th>實際頻率（Hz）</th><th>標準頻率（Hz）</th><th>差（Hz）</th><th>PPM</th><th>判定</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <div class="row"><button type="button" class="chipbtn" id="add">＋ 新增一筆</button><button type="button" class="chipbtn" id="cp">複製結果</button></div>
+    <p class="cap">PPM = (實際 − 標準) ÷ 標準 × 10<sup>6</sup>。正值代表頻率偏高。</p>
+  </div>
+</div>
+
+<script src="bench.js?v=20261102"></script>
+<script>
+function trim(){
+  const fm=num('fm'),ft=num('ft');
+  if(!(ft>0)||isNaN(fm)){$('trim').textContent='—';return;}
+  const t=(fm/ft-1)*2**20, ppm=(fm-ft)/ft*1e6;
+  $('trim').textContent=fmt(t,3);
+  $('tf').innerHTML=`( ${fmt(fm,6)} ÷ ${fmt(ft,6)} − 1 ) × 2<sup>20</sup> = ${fmt(fm/ft-1,9)} × 1048576 = <b class="r">${fmt(t,3)}</b>`;
+  const ti=Math.round(t);
+  $('tr').textContent=`${ti}　(0x${(ti>>>0).toString(16).toUpperCase()} 32-bit 補數)`.replace(/^-/,'−');
+  $('df').textContent=`${sgn(fm-ft,6)} MHz　(${sgn((fm-ft)*1e3,3)} kHz)`;
+  $('tp').textContent=`${sgn(ppm,3)} ppm`;
+  $('dir').innerHTML=t<0?'量測<span class="h">偏低</span>，trim 為負':t>0?'量測<span class="h">偏高</span>，trim 為正':'剛好';
+}
+let rows=[[2402000,2402007],[24410000,24410076],[24800000,24800068]];
+function drawRows(){
+  $('rows').innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td>
+    <td><input type="number" data-i="${i}" data-k="0" value="${r[0]}" aria-label="第 ${i+1} 筆實際頻率" style="width:10em"></td>
+    <td><input type="number" data-i="${i}" data-k="1" value="${r[1]}" aria-label="第 ${i+1} 筆標準頻率" style="width:10em"></td>
+    <td id="d${i}"></td><td id="p${i}"></td><td id="s${i}"></td>
+    <td><button type="button" class="chipbtn" data-del="${i}" aria-label="刪除第 ${i+1} 筆">✕</button></td></tr>`).join('');
+  calcRows();
+}
+function ppmOf(r){return (r[0]-r[1])/r[1]*1e6;}
+function calcRows(){
+  const lim=Math.abs(num('lim'));
+  rows.forEach((r,i)=>{
+    const ok=r[1]>0&&!isNaN(r[0]),p=ok?ppmOf(r):NaN;
+    $('d'+i).textContent=ok?sgn(r[0]-r[1],3):'—';
+    $('p'+i).innerHTML=ok?`<b class="r">${sgn(p,3)}</b>`:'—';
+    $('s'+i).innerHTML=!ok||isNaN(lim)?'':Math.abs(p)<=lim?'<span class="status ok">PASS</span>':'<span class="status bad">FAIL</span>';
+  });
+}
+$('rows').addEventListener('input',e=>{const t=e.target;if(t.dataset.i==null)return;rows[+t.dataset.i][+t.dataset.k]=parseFloat(t.value);calcRows();});
+$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d==null)return;rows.splice(+d,1);drawRows();});
+$('add').addEventListener('click',()=>{const l=rows[rows.length-1]||[0,0];rows.push([l[0],l[1]]);drawRows();});
+$('cp').addEventListener('click',e=>copyText(['實際頻率\t標準頻率\tPPM',...rows.map(r=>`${r[0]}\t${r[1]}\t${(ppmOf(r)).toFixed(4)}`)].join('\n'),e.target));
+$('lim').addEventListener('input',calcRows);
+['fm','ft'].forEach(id=>$(id).addEventListener('input',trim));
+document.querySelectorAll('[data-ft]').forEach(b=>b.addEventListener('click',()=>{$('ft').value=b.dataset.ft;trim();}));
+trim();drawRows();
+</script>
+</body>
+</html>

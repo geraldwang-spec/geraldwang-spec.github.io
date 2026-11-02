@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>量測統計 3σ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="bench.css?v=20261102">
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#bench">← 回到工具站</a>
+  <header>
+    <h1>量測統計 3σ</h1>
+    <p class="muted">貼上一串量測值，算出最大、最小、平均、標準差，以及平均 ± 3σ 的上下限，並標出落在範圍外的點。</p>
+  </header>
+
+  <div class="top">
+    <div class="panel">
+      <div class="field"><label for="data">量測值（換行、逗號、空白或 Tab 分隔，可直接從 Excel 貼上）</label>
+        <textarea id="data" spellcheck="false"></textarea></div>
+      <div class="row"><label class="lbl" for="k">倍數 k</label><input type="number" id="k" step="0.5" min="0" value="3" style="width:5em"><span class="unit">σ</span>
+        <span class="cap" id="cnt"></span></div>
+      <div class="row"><button type="button" class="chipbtn" id="clr">清空</button><button type="button" class="chipbtn" id="ex">載入範例</button></div>
+    </div>
+    <div class="panel" aria-live="polite">
+      <dl class="kv" style="font-size:15px">
+        <dt>Max</dt><dd id="mx"></dd>
+        <dt>Min</dt><dd id="mn"></dd>
+        <dt>平均</dt><dd id="av"></dd>
+        <dt>標準差（STDEV，樣本）</dt><dd><b class="r" id="sd"></b></dd>
+        <dt>標準差（STDEV.P，母體）</dt><dd id="sdp"></dd>
+        <dt>max limit</dt><dd><b class="r" id="ul"></b></dd>
+        <dt>min limit</dt><dd><b class="r" id="ll"></b></dd>
+        <dt>超出範圍</dt><dd id="out"></dd>
+      </dl>
+      <div class="formula" id="sf"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>每一筆量測值</h2>
+    <div class="svgbox"><svg id="plot" viewBox="0 0 900 260" role="img" aria-label="每筆量測值與平均、上下限的散佈圖"></svg></div>
+    <p class="cap">實線是平均，虛線是 ±kσ 上下限。紅點是落在上下限外的量測值。</p>
+  </div>
+</div>
+
+<script src="bench.js?v=20261102"></script>
+<script>
+const EX=[100,100,100,100,100,400,101,100,100,100,110,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100];
+$('data').value=EX.join('\n');
+function calc(){
+  const xs=$('data').value.split(/[\s,，;]+/).map(parseFloat).filter(x=>!isNaN(x));
+  const n=xs.length,k=num('k');
+  $('cnt').textContent=`共 ${n} 筆`;
+  const ids=['mx','mn','av','sd','sdp','ul','ll','out'];
+  if(n<2){ids.forEach(i=>$(i).textContent='—');$('sf').textContent='至少需要 2 筆資料';$('plot').innerHTML='';return;}
+  const mx=Math.max(...xs),mn=Math.min(...xs),av=xs.reduce((a,b)=>a+b,0)/n;
+  const ss=xs.reduce((a,x)=>a+(x-av)**2,0),sd=Math.sqrt(ss/(n-1)),sdp=Math.sqrt(ss/n);
+  const ul=av+k*sd,ll=av-k*sd,outs=xs.map((x,i)=>[i,x]).filter(([,x])=>x>ul||x<ll);
+  $('mx').textContent=fmt(mx,6);$('mn').textContent=fmt(mn,6);$('av').textContent=fmt(av,6);
+  $('sd').textContent=fmt(sd,6);$('sdp').textContent=fmt(sdp,6);
+  $('ul').textContent=fmt(ul,6);$('ll').textContent=fmt(ll,6);
+  $('out').innerHTML=outs.length?`<span class="bad">${outs.length} 筆：</span>`+outs.map(([i,x])=>`#${i+1} = ${fmt(x,6)}`).join('、'):'<span class="ok">無</span>';
+  $('sf').innerHTML=`limit = ${fmt(av,4)} ± ${fmt(k)} × ${fmt(sd,4)} = ${fmt(av,4)} ± ${fmt(k*sd,4)}`;
+  plot(xs,av,ul,ll);
+}
+function plot(xs,av,ul,ll){
+  const L=70,R=880,T=16,B=226,n=xs.length;
+  let lo=Math.min(...xs,ll),hi=Math.max(...xs,ul);if(hi===lo){hi+=1;lo-=1;}
+  const pad=(hi-lo)*.06;lo-=pad;hi+=pad;
+  const X=i=>n===1?(L+R)/2:L+(R-L)*i/(n-1),Y=v=>B-(B-T)*(v-lo)/(hi-lo);
+  let h=`<rect x="${L}" y="${Y(ul)}" width="${R-L}" height="${Math.max(0,Y(ll)-Y(ul))}" fill="var(--res)" opacity=".07"/>`;
+  [[ul,'max limit'],[ll,'min limit']].forEach(([v,t])=>{h+=`<line x1="${L}" x2="${R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--res)" stroke-dasharray="6 5"/><text x="${L-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--res)" font-family="var(--f-mono)">${fmt(v,2)}</text>`;});
+  h+=`<line x1="${L}" x2="${R}" y1="${Y(av)}" y2="${Y(av)}" stroke="var(--muted)"/><text x="${L-8}" y="${Y(av)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="var(--f-mono)">${fmt(av,2)}</text>`;
+  const r=n>200?2:n>80?3:4;
+  xs.forEach((x,i)=>{const bad=x>ul||x<ll;h+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(x).toFixed(1)}" r="${bad?r+1.5:r}" fill="${bad?'var(--warn)':'var(--ink)'}" opacity="${bad?1:.75}"><title>#${i+1}: ${x}</title></circle>`;});
+  const step=Math.max(1,Math.ceil(n/10));
+  for(let i=0;i<n;i+=step)h+=`<text x="${X(i)}" y="${B+18}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--f-mono)">${i+1}</text>`;
+  h+=`<text x="${(L+R)/2}" y="${B+32}" text-anchor="middle" font-size="12" fill="var(--muted)" font-family="var(--f-body)">第幾筆</text>`;
+  $('plot').innerHTML=h;
+}
+$('data').addEventListener('input',calc);$('k').addEventListener('input',calc);
+$('clr').addEventListener('click',()=>{$('data').value='';calc();$('data').focus();});
+$('ex').addEventListener('click',()=>{$('data').value=EX.join('\n');calc();});
+calc();
+</script>
+</body>
+</html>

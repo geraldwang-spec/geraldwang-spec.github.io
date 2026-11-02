@@ -9,6 +9,15 @@
 - `nonius.html`：Nonius 雙磁軌絕對角度計算
 - `adc.html`：ADC 電壓換算器
 
+硬體量測計算（大項 `bench`，由原本的 Excel 小工具改寫，共用 `bench.css`、`bench.js`）：
+
+- `freq.html`：頻率 Trim value 與 PPM
+- `voltage.html`：電壓容差 ±% 與電壓下降對照表
+- `stats.html`：量測統計（Max / Min / 平均 / 標準差 / ±3σ）
+- `cable.html`：RF Cable Loss（線材 + 接頭 + 組裝）
+- `roi.html`：影像取樣範圍座標
+- `pit.html`：KL27 PIT LDVAL 計算
+
 ## 新增大項
 
 在 `catalog.js` 的 `CATALOG` 陣列加一個物件：

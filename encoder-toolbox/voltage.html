@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>電壓容差計算</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="bench.css?v=20261102">
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#bench">← 回到工具站</a>
+  <header>
+    <h1>電壓容差計算</h1>
+    <p class="muted">電源軌 ±% 的上下限，以及電壓降到某個百分比時的 max / min 範圍。</p>
+  </header>
+
+  <div class="top">
+    <div class="panel">
+      <h2>單一電壓上下限</h2>
+      <div class="field"><label for="v">標稱電壓</label>
+        <div class="row"><input type="number" id="v" step="0.01" value="3.3"><span class="unit">V</span>
+          <button type="button" class="chipbtn" data-v="1.35">1.35</button><button type="button" class="chipbtn" data-v="1.8">1.8</button><button type="button" class="chipbtn" data-v="3.3">3.3</button><button type="button" class="chipbtn" data-v="5">5.0</button></div></div>
+      <div class="field"><label for="tol">容差</label>
+        <div class="row"><input type="number" id="tol" step="0.5" value="5"><span class="unit">%</span>
+          <button type="button" class="chipbtn" data-t="3">3</button><button type="button" class="chipbtn" data-t="5">5</button><button type="button" class="chipbtn" data-t="10">10</button></div></div>
+    </div>
+    <div class="panel" aria-live="polite">
+      <dl class="kv" style="font-size:16px">
+        <dt>High</dt><dd><b class="r" id="hi" style="font-size:26px"></b></dd>
+        <dt>Low</dt><dd><b class="r" id="lo" style="font-size:26px"></b></dd>
+        <dt>±</dt><dd id="dv"></dd>
+      </dl>
+      <div class="formula" id="vf"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2>常用電源軌</h2><span class="cap">同一個容差，一次看全部</span></div>
+    <div class="tbl"><table><thead><tr><th>標稱 (V)</th><th>Low (V)</th><th>High (V)</th><th>±(mV)</th></tr></thead><tbody id="rails"></tbody></table></div>
+    <div class="row"><label class="lbl" for="railList">電壓清單（逗號分隔）</label><input type="text" id="railList" value="1.35, 1.8, 3.3" style="width:16em"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><h2>電壓下降對照表</h2><button type="button" class="chipbtn" id="cp">複製表格</button></div>
+    <div class="row">
+      <label class="lbl" for="sv">電壓</label><input type="number" id="sv" step="0.01" value="3.3" style="width:6em"><span class="unit">V</span>
+      <label class="lbl" for="st" style="margin-left:8px">容差</label><input type="number" id="st" step="0.5" value="5" style="width:5em"><span class="unit">%</span>
+    </div>
+    <div class="row"><label class="lbl" for="steps">下降百分比（逗號分隔）</label><input type="text" id="steps" value="3, 10, 20, 30, 40, 50, 60, 70, 80, 90, 97, 100" style="width:min(100%,26em)"></div>
+    <div class="tbl"><table><thead><tr><th>下降</th><th>電壓 (V)</th><th>max (V)</th><th>min (V)</th></tr></thead><tbody id="steprows"></tbody></table></div>
+    <p class="cap">電壓 = V × (1 − 下降%)，max / min = 電壓 × (1 ± 容差%)。</p>
+  </div>
+</div>
+
+<script src="bench.js?v=20261102"></script>
+<script>
+const list=s=>s.split(/[,\s，、]+/).map(parseFloat).filter(x=>!isNaN(x));
+function one(){
+  const v=num('v'),t=num('tol')/100;
+  if(isNaN(v)||isNaN(t)){$('hi').textContent=$('lo').textContent='—';return;}
+  $('hi').textContent=fmt(v*(1+t),4)+' V';$('lo').textContent=fmt(v*(1-t),4)+' V';
+  $('dv').textContent=fmt(v*t*1000,2)+' mV';
+  $('vf').innerHTML=`High = ${fmt(v)} + ${fmt(v)} × ${fmt(t,4)} = ${fmt(v*(1+t),4)}<br>Low&nbsp; = ${fmt(v)} − ${fmt(v)} × ${fmt(t,4)} = ${fmt(v*(1-t),4)}`;
+  rails();
+}
+function rails(){
+  const t=num('tol')/100;
+  $('rails').innerHTML=list($('railList').value).map(v=>`<tr><td>${fmt(v)}</td><td>${fmt(v*(1-t),4)}</td><td>${fmt(v*(1+t),4)}</td><td>${fmt(v*t*1000,2)}</td></tr>`).join('');
+}
+let stepData=[];
+function steps(){
+  const v=num('sv'),t=num('st')/100;
+  stepData=list($('steps').value).map(p=>{const x=v*(1-p/100);return [p,x,x*(1+t),x*(1-t)];});
+  $('steprows').innerHTML=stepData.map(r=>`<tr><td>${fmt(r[0],2)} %</td><td><b class="r">${fmt(r[1],4)}</b></td><td>${fmt(r[2],4)}</td><td>${fmt(r[3],4)}</td></tr>`).join('');
+}
+document.querySelectorAll('[data-v]').forEach(b=>b.addEventListener('click',()=>{$('v').value=b.dataset.v;one();}));
+document.querySelectorAll('[data-t]').forEach(b=>b.addEventListener('click',()=>{$('tol').value=b.dataset.t;one();}));
+['v','tol'].forEach(id=>$(id).addEventListener('input',one));
+$('railList').addEventListener('input',rails);
+['sv','st','steps'].forEach(id=>$(id).addEventListener('input',steps));
+$('cp').addEventListener('click',e=>copyText(['下降%\t電壓\tmax\tmin',...stepData.map(r=>r.map(x=>+x.toFixed(6)).join('\t'))].join('\n'),e.target));
+one();steps();
+</script>
+</body>
+</html>

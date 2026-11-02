@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KL27 PIT LDVAL 計算</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="bench.css?v=20261102">
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#bench">← 回到工具站</a>
+  <header>
+    <h1>KL27 PIT LDVAL 計算</h1>
+    <p class="muted">NXP Kinetis KL27 的 PIT（Periodic Interrupt Timer）要多久觸發一次，LDVAL 就填多少。也可以反過來，從 LDVAL 算回週期。</p>
+  </header>
+
+  <div class="top">
+    <div class="panel">
+      <div class="field"><label for="clk">PIT 時脈（bus clock）</label>
+        <div class="row"><input type="number" id="clk" step="1" min="0" value="48"><span class="unit">MHz</span>
+          <button type="button" class="chipbtn" data-clk="24">24</button><button type="button" class="chipbtn" data-clk="48">48</button></div></div>
+      <div class="field"><label for="per">觸發週期</label>
+        <div class="row"><input type="number" id="per" step="any" min="0" value="1">
+          <select id="unit" aria-label="週期單位"><option value="1e-6">µs</option><option value="1e-3" selected>ms</option><option value="1">s</option></select>
+          <span class="cap" id="hz"></span></div></div>
+      <div class="field"><span class="lbl">常用</span>
+        <div class="row"><button type="button" class="chipbtn" data-p="100,1e-6">100 µs</button><button type="button" class="chipbtn" data-p="1,1e-3">1 ms</button><button type="button" class="chipbtn" data-p="10,1e-3">10 ms</button><button type="button" class="chipbtn" data-p="1,1">1 s</button></div></div>
+    </div>
+    <div class="panel" aria-live="polite">
+      <div class="big"><span class="n" id="hex">—</span><span class="u">LDVAL</span><span class="status ok" id="st">正常</span></div>
+      <div class="formula" id="pf"></div>
+      <dl class="kv">
+        <dt>十進位</dt><dd id="dec"></dd>
+        <dt>一個 tick</dt><dd id="tick"></dd>
+        <dt>實際週期</dt><dd id="act"></dd>
+        <dt>週期誤差</dt><dd id="err"></dd>
+        <dt>最長週期（32 bit）</dt><dd id="max"></dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <h2>反過來：LDVAL → 週期</h2>
+      <div class="field"><label for="ld">LDVAL（十六進位或十進位，0x 開頭視為十六進位）</label>
+        <div class="row"><input type="text" id="ld" value="0xBB7F" spellcheck="false"></div></div>
+      <dl class="kv"><dt>十進位</dt><dd id="rd"></dd><dt>週期</dt><dd><b class="r" id="rp"></b></dd><dt>頻率</dt><dd id="rf"></dd></dl>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between"><h2>C 範例</h2><button type="button" class="chipbtn" id="cp">複製</button></div>
+      <pre class="formula" id="code" style="margin:0;white-space:pre"></pre>
+      <p class="cap">PIT 從 LDVAL 往下數到 0 才觸發，所以總共數了 LDVAL + 1 個 tick，公式要減 1。</p>
+    </div>
+  </div>
+</div>
+
+<script src="bench.js?v=20261102"></script>
+<script>
+const MAX=0xFFFFFFFF;
+function tfmt(s){const a=Math.abs(s);return a>=1?fmt(s,6)+' s':a>=1e-3?fmt(s*1e3,6)+' ms':a>=1e-6?fmt(s*1e6,4)+' µs':fmt(s*1e9,3)+' ns';}
+function ffmt(f){return f>=1e6?fmt(f/1e6,6)+' MHz':f>=1e3?fmt(f/1e3,6)+' kHz':fmt(f,4)+' Hz';}
+const H=v=>v.toString(16).toUpperCase();
+function calc(){
+  const fc=num('clk')*1e6,T=num('per')*parseFloat($('unit').value);
+  const ok=fc>0&&T>0;
+  $('hz').textContent=ok?'= '+ffmt(1/T):'';
+  if(!ok){$('hex').textContent='—';return;}
+  const tick=1/fc,raw=T/tick-1,ld=Math.round(raw),st=$('st');
+  $('pf').innerHTML=`LDVAL = 週期 ÷ (1 ÷ 時脈) − 1 = ${tfmt(T)} ÷ ${tfmt(tick)} − 1 = ${fmt(raw,4)}`;
+  $('tick').textContent=`1 ÷ ${fmt(fc/1e6)} MHz = ${tfmt(tick)}`;
+  $('max').textContent=tfmt((MAX+1)*tick);
+  if(ld<0||ld>MAX){st.textContent=ld<0?'週期太短':'超過 32 bit';st.className='status bad';$('hex').textContent='—';$('dec').textContent=fmt(raw,4);$('act').textContent=$('err').textContent='—';code(null);return;}
+  st.textContent=Math.abs(raw-ld)>1e-6?'已四捨五入':'整數';st.className='status '+(Math.abs(raw-ld)>1e-6?'bad':'ok');
+  $('hex').textContent='0x'+H(ld);$('dec').textContent=ld;
+  const act=(ld+1)*tick;$('act').textContent=tfmt(act)+'（'+ffmt(1/act)+'）';
+  $('err').textContent=`${sgn((act-T)*1e9,3)} ns（${sgn((act-T)/T*1e6,3)} ppm）`;
+  code(ld);
+}
+function code(ld){
+  $('code').textContent=ld==null?'// 週期超出範圍':`/* ${fmt(num('clk'))} MHz, ${tfmt((ld+1)/(num('clk')*1e6))} */
+SIM->SCGC6 |= SIM_SCGC6_PIT_MASK;          // 開 PIT 時脈
+PIT->MCR = 0;                              // 啟用 PIT
+PIT->CHANNEL[0].LDVAL = 0x${H(ld)};          // ${ld}
+PIT->CHANNEL[0].TCTRL = PIT_TCTRL_TIE_MASK | PIT_TCTRL_TEN_MASK;
+NVIC_EnableIRQ(PIT_IRQn);`;
+}
+function rev(){
+  const s=$('ld').value.trim(),v=/^0x/i.test(s)?parseInt(s,16):/^[0-9]+$/.test(s)?parseInt(s,10):/^[0-9a-f]+$/i.test(s)?parseInt(s,16):NaN;
+  const fc=num('clk')*1e6;
+  if(isNaN(v)||v<0||v>MAX||!(fc>0)){$('rd').textContent='請輸入 0 ~ 0xFFFFFFFF';$('rp').textContent=$('rf').textContent='';return;}
+  const T=(v+1)/fc;$('rd').textContent=v;$('rp').textContent=tfmt(T);$('rf').textContent=ffmt(1/T);
+}
+['clk','per'].forEach(id=>$(id).addEventListener('input',()=>{calc();rev();}));$('unit').addEventListener('change',calc);
+$('ld').addEventListener('input',rev);
+document.querySelectorAll('[data-clk]').forEach(b=>b.addEventListener('click',()=>{$('clk').value=b.dataset.clk;calc();rev();}));
+document.querySelectorAll('[data-p]').forEach(b=>b.addEventListener('click',()=>{const [p,u]=b.dataset.p.split(',');$('per').value=p;$('unit').value=u;calc();}));
+$('cp').addEventListener('click',e=>copyText($('code').textContent,e.target));
+calc();rev();
+</script>
+</body>
+</html>
