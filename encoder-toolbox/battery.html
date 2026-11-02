@@ -7,7 +7,7 @@
 <title>電池續航計算</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <link rel="stylesheet" href="bench.css?v=20261102">
-<style>.tbl.tall{max-height:520px;overflow-y:auto} thead th{position:sticky;top:0;background:var(--surface)}</style>
+<style>.refs a{color:var(--res)} .refs li{overflow-wrap:anywhere} .tbl.tall{max-height:520px;overflow-y:auto} thead th{position:sticky;top:0;background:var(--surface)}</style>
 </head>
 <body>
 <div class="wrap">
@@ -30,7 +30,7 @@
       <div class="field"><label for="vc">斷電電壓（0%）</label>
         <div class="row"><input type="number" id="vc" step="0.01" value="3.0"><span class="unit">V</span></div></div>
       <div class="field"><span class="lbl">常用電池</span>
-        <div class="row"><button type="button" class="chipbtn" data-bat="4.2,3.0,li">鋰電 4.2 / 3.0</button><button type="button" class="chipbtn" data-bat="4.2,3.3,li">鋰電 4.2 / 3.3</button><button type="button" class="chipbtn" data-bat="3.65,2.5,lin">磷酸鐵鋰 3.65 / 2.5</button><button type="button" class="chipbtn" data-bat="3.0,2.0,lin">2×AA 3.0 / 2.0</button></div></div>
+        <div class="row"><button type="button" class="chipbtn" data-bat="4.2,3.0,li">鋰電 4.2 / 3.0</button><button type="button" class="chipbtn" data-bat="4.2,3.3,li">鋰電 4.2 / 3.3</button><button type="button" class="chipbtn" data-bat="3.65,2.5,lin">磷酸鐵鋰 3.65 / 2.5</button><button type="button" class="chipbtn" data-bat="3.0,1.6,lin">2×AA 3.0 / 1.6</button></div></div>
       <div class="field"><label for="eff">可用容量（老化、溫度、轉換效率）</label>
         <div class="row"><input type="number" id="eff" step="1" min="1" max="100" value="100" style="width:6em"><span class="unit">%</span></div></div>
       <div class="field"><span class="lbl">電壓與電量的關係</span>
@@ -59,7 +59,68 @@
       <thead><tr><th>電量</th><th>電壓 (V)</th><th>剩餘容量 (mAh)</th><th>剩餘時間</th><th>已使用時間</th></tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
-    <p class="cap">剩餘時間 = 剩餘容量 ÷ 耗電流。線性模式的電壓 = 斷電電壓 + (滿電 − 斷電) × 電量%。實際電池的電壓會隨負載電流和溫度變動，這裡是估算。</p>
+    <p class="cap">公式與注意事項在下方。實際電池的電壓會隨負載電流和溫度變動，這裡是估算。</p>
+  </div>
+
+  <div class="panel">
+    <h2>計算公式</h2>
+    <p class="cap">符號：C = 電池容量 (mAh)、η = 可用容量比例、I = 平均耗電流 (mA)、SoC = 電量 (0 ~ 100%)、V<sub>full</sub> = 滿電電壓、V<sub>cut</sub> = 斷電電壓。</p>
+
+    <h2 style="font-size:15px">1. 可以用多久</h2>
+    <div class="formula">t (小時) = C × η ÷ I<br>例：1000 mAh × 100% ÷ 50 mA = 20 小時</div>
+    <p class="cap">mAh 的定義就是「以 1 mA 放電可以撐幾小時」，所以容量除以電流就是時間。電流選 µA 時先 ÷ 1000 換成 mA，選 A 時 × 1000。這和 C-rate 的定義相同：1 Ah 的電池以 1C（1 A）放電可用 1 小時，以 0.5C（500 mA）可用 2 小時〔1〕。</p>
+
+    <h2 style="font-size:15px">2. 每個 % 的剩餘容量與時間</h2>
+    <div class="formula">每 1% 容量 = C × η ÷ 100<br>剩餘容量 = C × η × SoC ÷ 100<br>剩餘時間 = t × SoC ÷ 100　　已使用時間 = t × (100 − SoC) ÷ 100</div>
+    <p class="cap">這裡假設耗電流固定，所以電量和時間是正比關係。如果裝置有休眠和喚醒兩種狀態，平均電流 = (I<sub>喚醒</sub> × t<sub>喚醒</sub> + I<sub>休眠</sub> × t<sub>休眠</sub>) ÷ (t<sub>喚醒</sub> + t<sub>休眠</sub>)，再填進上面的「平均耗電流」。</p>
+
+    <h2 style="font-size:15px">3. 電量 % 對應的電壓：線性</h2>
+    <div class="formula">V(SoC) = V<sub>cut</sub> + (V<sub>full</sub> − V<sub>cut</sub>) × SoC ÷ 100<br>例：3.0 + (4.2 − 3.0) × 50 ÷ 100 = 3.6 V</div>
+    <p class="cap">把斷電到滿電的電壓平均分成 100 份。算法簡單，適合先粗估或設定電量顯示的門檻，但和真實電池的放電曲線有落差。</p>
+
+    <h2 style="font-size:15px">4. 電量 % 對應的電壓：鋰電池放電曲線</h2>
+    <div class="formula">V(SoC) = V<sub>cut</sub> + (V<sub>full</sub> − V<sub>cut</sub>) × f(SoC)<br>f(SoC) = (V<sub>典型</sub>(SoC) − 3.0) ÷ (4.2 − 3.0)，兩個點之間用線性內插</div>
+    <div class="tbl"><table>
+      <thead><tr><th>SoC</th><th>0%</th><th>5%</th><th>10%</th><th>20%</th><th>30%</th><th>40%</th><th>50%</th><th>60%</th><th>70%</th><th>80%</th><th>90%</th><th>100%</th></tr></thead>
+      <tbody><tr><td>典型電壓 (V)</td><td>3.00</td><td>3.45</td><td>3.68</td><td>3.74</td><td>3.77</td><td>3.79</td><td>3.82</td><td>3.87</td><td>3.92</td><td>3.98</td><td>4.06</td><td>4.20</td></tr></tbody>
+    </table></div>
+    <p class="cap">這是一般 4.2 V 鋰電池（鈷酸鋰、三元）靜置後的典型開路電壓（OCV），先換成 0 ~ 1 的比例 f，再套到你輸入的滿電 / 斷電電壓。鋰電池中段電壓很平、頭尾變化很快〔2〕，所以中段用電壓判斷電量誤差會比較大。表中數值是常見電芯的典型值，不是特定型號的量測結果；要更準，應該用自己的電芯照〔4〕的方法量一份 OCV 表。</p>
+  </div>
+
+  <div class="panel">
+    <h2>注意事項</h2>
+    <ul>
+      <li><b>電壓要靜置後才準。</b>用電壓判斷電量時，電池要開路靜置一段時間（Battery University 建議至少 4 小時），充放電中的電壓會偏移；溫度高電壓偏高，溫度低電壓偏低〔2〕。</li>
+      <li><b>負載大，會提早斷電。</b>大電流時電池內阻造成的壓降會讓電壓提早掉到斷電點，冷天更明顯〔3〕。鋰電池放到 3.0 V 時通常還剩約 5% 的電量〔3〕。</li>
+      <li><b>放電越快，能放出的容量越少。</b>C-rate 越高，量到的容量越低〔1〕。可以用 Peukert 公式修正：t = H × (C ÷ (I × H))<sup>n</sup>，H 是容量標稱時的放電小時數，鋰電池的 n 約 1.0 ~ 1.05，鉛酸約 1.05 ~ 1.6〔5〕。一般小電流的鋰電池產品，直接用「可用容量 %」打個折就夠了。</li>
+      <li><b>老化和轉換效率。</b>電池循環次數多了容量會下降，經過 DC-DC 轉換也有損耗，這些都可以用「可用容量 %」一起扣掉，例如填 80 ~ 90%。</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>常用電池預設值的出處</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>電池</th><th>滿電</th><th>斷電</th><th>出處</th></tr></thead>
+      <tbody>
+        <tr><td>鋰電（鈷酸鋰 / 三元）</td><td>4.2 V</td><td>3.0 V</td><td style="text-align:left;white-space:normal">手機、筆電等可攜裝置多在 3.00 V/cell 關機〔3〕</td></tr>
+        <tr><td>鋰電（保守斷電）</td><td>4.2 V</td><td>3.3 V</td><td style="text-align:left;white-space:normal">提高斷電點保留電量、減少深放電，常見於韌體自訂的低電量關機</td></tr>
+        <tr><td>磷酸鐵鋰 LiFePO4</td><td>3.65 V</td><td>2.5 V</td><td style="text-align:left;white-space:normal">PSL IFR18650EC 規格書：Charge Cut-off 3.65 V、Recommended Discharge Cut-off 2.5 V〔6〕</td></tr>
+        <tr><td>鹼性電池 2×AA</td><td>3.0 V</td><td>1.6 V</td><td style="text-align:left;white-space:normal">Energizer E91 規格書：標稱 1.5 V、容量以連續放電到 0.8 V 計算〔7〕，兩顆串聯即 3.0 V / 1.6 V</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="panel">
+    <h2>參考資料</h2>
+    <ol style="margin:0;padding-left:1.6em;font-size:14px" class="refs">
+      <li><a href="https://batteryuniversity.com/article/what-is-the-c-rate" target="_blank" rel="noopener">Battery University, BU-402: What Is C-rate?</a></li>
+      <li><a href="https://batteryuniversity.com/article/how-to-measure-state-of-charge" target="_blank" rel="noopener">Battery University, BU-903: How to Measure State-of-charge</a></li>
+      <li><a href="https://batteryuniversity.com/article/bu-802c-how-low-can-a-battery-be-discharged" target="_blank" rel="noopener">Battery University, BU-802c: How Low can a Battery be Discharged?</a></li>
+      <li><a href="https://www.analog.com/en/resources/design-notes/characterizing-a-lithiumion-li-cell-for-use-with-an-opencircuitvoltage-ocv-based-fuel-gauge.html" target="_blank" rel="noopener">Analog Devices, Characterizing a Lithium-Ion (Li+) Cell for Use with an Open-Circuit-Voltage (OCV) Based Fuel Gauge</a></li>
+      <li><a href="https://www.batterydesign.net/modelling/peukerts-law/" target="_blank" rel="noopener">Battery Design, Peukert’s Law</a></li>
+      <li><a href="https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/8510/PSL_FP_IFR18650EC_Data_Sheet-1952430.pdf" target="_blank" rel="noopener">PSL IFR18650EC LiFePO4 Data Sheet（Digi-Key）</a></li>
+      <li><a href="https://data.energizer.com/pdfs/E91_Max_NA.pdf" target="_blank" rel="noopener">Energizer E91 AA Alkaline Data Sheet</a></li>
+    </ol>
   </div>
 </div>
 
