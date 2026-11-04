@@ -4,7 +4,7 @@
  * 新增一個「大項」：在 CATALOG 陣列加一個物件
  *   { id, name, icon, summary, tools: [...] }
  *   id      網址用的代號（英文、數字、-），例如 "motor"
- *   icon    圖示名稱，可用：encoder、chip、motor、gear、wave、ruler、box
+ *   icon    圖示名稱，可用：encoder、chip、motor、gear、wave、ruler、box、diagram
  *
  * 在大項裡新增一個「工具」：在它的 tools 陣列加一個物件
  *   { id, name, href, summary, tags: [...], points: [...] }
@@ -114,6 +114,22 @@ window.CATALOG = [
         summary: "輸入電池容量、耗電流、滿電和斷電電壓，算出可以用多久，以及每個電量 % 對應的電壓。",
         tags: ["mAh", "續航時間", "電量 % ↔ 電壓"],
         points: ["容量 ÷ 電流 = 可用時間", "1% / 5% / 10% 電壓與剩餘時間表", "線性或鋰電池放電曲線"]
+      }
+    ]
+  },
+  {
+    id: "dev",
+    name: "軟體設計",
+    icon: "diagram",
+    summary: "規劃系統時用的小工具：先把資料表、關係和想法畫出來，再開始寫程式。",
+    tools: [
+      {
+        id: "design-board",
+        name: "設計草稿板",
+        href: "design-board.html",
+        summary: "用表單編輯資料表、欄位和關係，右邊即時畫出 ER 圖；也能畫心智圖、記討論筆記。",
+        tags: ["ER 圖", "心智圖", "Mermaid"],
+        points: ["PK / FK / UK 與一對多、多對多關係", "滾輪縮放、空白鍵拖曳；下載 PNG / SVG / Mermaid", "存在瀏覽器，可匯出 / 匯入 JSON"]
       }
     ]
   }

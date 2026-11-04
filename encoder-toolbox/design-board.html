@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>設計草稿板</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style id="page-css">
+/* Layout: header + tab bar (ER 圖 / 心智圖); left column = the active form editor plus shared notes; right = live diagram preview. Stacks on narrow screens. */
+:root {
+  --bg: #f4f5f8; --panel: #ffffff; --ink: #1b2230; --muted: #5b6475; --line: #d8dce4;
+  --accent: #2f55b5; --accent-ink: #ffffff; --field: #f0f2f7; --soft: #e8edf9;
+  --warn-bg: #fff3dc; --warn-ink: #6f4500; --err-bg: #fdecec; --err-ink: #962020; --ok: #1d7448;
+  --canvas: #fafbfd; --dot: #d2d7e1; --root-bg: #26324a; --root-ink: #ffffff; --faint: #9aa1ae;
+  --font-ui: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151c; --panel: #191e27; --ink: #e5e8ee; --muted: #9aa3b3; --line: #2b323f;
+  --accent: #8aa5f2; --accent-ink: #0d1220; --field: #141922; --soft: #222b3d;
+  --warn-bg: #3a2b10; --warn-ink: #f2cf8c; --err-bg: #3b1919; --err-ink: #f3a8a8; --ok: #62cf98;
+  --canvas: #0f141b; --dot: #253040; --root-bg: #2b3546; --root-ink: #eef1f6; --faint: #5f6878;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #11151c; --panel: #191e27; --ink: #e5e8ee; --muted: #9aa3b3; --line: #2b323f;
+  --accent: #8aa5f2; --accent-ink: #0d1220; --field: #141922; --soft: #222b3d;
+  --warn-bg: #3a2b10; --warn-ink: #f2cf8c; --err-bg: #3b1919; --err-ink: #f3a8a8; --ok: #62cf98;
+  --canvas: #0f141b; --dot: #253040; --root-bg: #2b3546; --root-ink: #eef1f6; --faint: #5f6878;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.55; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px 32px; display: grid; gap: 14px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+h1 { font-size: 18px; margin: 0; font-weight: 700; text-wrap: balance; }
+h2 { font-size: 15px; margin: 0; font-weight: 700; }
+.sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+.hint kbd { font-family: var(--font-code); font-size: 11.5px; background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.ok { color: var(--ok); border-color: currentColor; }
+.chip.dirty { color: var(--warn-ink); background: var(--warn-bg); border-color: transparent; }
+.chip.ro { color: var(--err-ink); background: var(--err-bg); border-color: transparent; }
+button { font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.add { border-style: dashed; color: var(--accent); background: transparent; }
+button.x { padding: 4px 9px; color: var(--muted); background: transparent; border-color: transparent; }
+button.x:hover { color: var(--err-ink); border-color: var(--line); }
+button.x.armed { color: var(--err-ink); background: var(--err-bg); border-color: var(--err-ink); }
+button.mini { padding: 3px 8px; font-size: 12.5px; color: var(--accent); background: transparent; white-space: nowrap; }
+button.danger { color: var(--err-ink); background: transparent; font-size: 12.5px; padding: 4px 10px; }
+button.danger.armed { background: var(--err-bg); border-color: var(--err-ink); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; min-width: 0; box-sizing: border-box; }
+input.bad { border-color: var(--err-ink); background: var(--err-bg); }
+.banner { background: var(--warn-bg); color: var(--warn-ink); padding: 10px 12px; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.banner p { margin: 0; flex: 1 1 260px; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 8px 16px; color: var(--muted); margin-bottom: -1px; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+
+main { display: grid; gap: 16px; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; }
+@media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } }
+.col, .pane { display: grid; gap: 14px; min-width: 0; }
+.pane[hidden], .banner[hidden] { display: none; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+label.cap, .cap { font-size: 12px; letter-spacing: .04em; color: var(--muted); font-weight: 500; }
+
+/* ER: table cards */
+#tables { display: grid; gap: 12px; }
+.tcard { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.thead { background: var(--soft); padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.thead .tname { font-family: var(--font-code); font-weight: 600; flex: 1 1 160px; }
+.thead .tnote { flex: 2 1 180px; }
+.fields { padding: 8px 10px; display: grid; gap: 6px; }
+.fhead, .frow { display: grid; grid-template-columns: minmax(0, 1.25fr) 7.2em 6.4em minmax(0, 1.4fr) 2.2em; gap: 6px; align-items: center; }
+.fhead span { font-size: 11.5px; color: var(--muted); letter-spacing: .04em; }
+.frow .fname { font-family: var(--font-code); }
+.tfoot { padding: 0 10px 10px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .fhead { display: none; }
+  .frow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.2em; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
+  .frow .fnote { grid-column: 1 / 3; }
+}
+/* ER: relationships */
+#rels { display: grid; gap: 8px; }
+.rrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 2.2em; gap: 6px; align-items: center; }
+@media (max-width: 560px) { .rrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding-bottom: 8px; border-bottom: 1px dashed var(--line); } }
+
+/* Mind map outline */
+.mroot { display: flex; gap: 8px; align-items: center; }
+.mroot input { flex: 1 1 auto; font-weight: 700; font-size: 15px; background: var(--soft); }
+#mind { display: grid; gap: 5px; }
+.mrow { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.mrow .guide { flex: none; align-self: stretch; border-left: 1px solid var(--line); margin-left: 9px; width: 12px; }
+.mrow .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.mrow .dot.leaf { background: transparent; border: 1.5px solid var(--accent); box-sizing: border-box; }
+.mrow input { flex: 1 1 auto; }
+
+.empty { color: var(--muted); margin: 6px 2px; }
+.err { background: var(--err-bg); color: var(--err-ink); font-size: 12.5px; padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; margin: 0; }
+#notes { width: 100%; min-height: 110px; resize: vertical; }
+details summary { cursor: pointer; font-weight: 500; }
+pre.code { font-family: var(--font-code); font-size: 12.5px; background: var(--field); padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0 0; }
+.legend { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; font-size: 12.5px; color: var(--muted); margin: 0; }
+.legend b { color: var(--ink); font-weight: 500; }
+
+.preview { position: sticky; top: env(safe-area-inset-top, 0px); }
+.zoom { display: flex; gap: 6px; align-items: center; }
+.zoom button { padding: 3px 9px; font-size: 13px; }
+#zoomv { font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: center; color: var(--muted); font-size: 12px; }
+#view { overflow: auto; min-height: 360px; max-height: 80vh; border-radius: 6px; background: var(--panel); }
+#view svg { display: block; max-width: none; height: auto; }
+#view.paper { background: #ffffff; }
+#view.pan, #view.pan * { cursor: grab; }
+#view.panning, #view.panning * { cursor: grabbing; user-select: none; }
+@media (max-width: 960px) { .preview { position: static; } }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg[hidden] { display: none; }
+.seg button { border: none; border-radius: 0; padding: 3px 10px; font-size: 12.5px; color: var(--muted); background: transparent; }
+.seg button[aria-pressed="true"] { background: var(--soft); color: var(--ink); font-weight: 600; }
+.tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.backlink { display: inline-block; font-size: 13px; color: var(--muted); text-decoration: none; margin-bottom: 2px; }
+.backlink:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<script type="application/json" id="er-data">{"tables": [{"id": "t1", "name": "customers", "note": "客戶", "fields": [{"id": "a1", "name": "id", "type": "bigint", "key": "PK", "note": ""}, {"id": "a2", "name": "name", "type": "varchar", "key": "", "note": "客戶名稱"}, {"id": "a3", "name": "email", "type": "varchar", "key": "UK", "note": "聯絡信箱"}]}, {"id": "t2", "name": "orders", "note": "訂單：一張訂單屬於一個客戶", "fields": [{"id": "b1", "name": "id", "type": "bigint", "key": "PK", "note": ""}, {"id": "b2", "name": "customer_id", "type": "bigint", "key": "FK", "note": "哪個客戶"}, {"id": "b3", "name": "status", "type": "varchar", "key": "", "note": "草稿／已下單／已出貨"}, {"id": "b4", "name": "ordered_at", "type": "datetime", "key": "", "note": "下單時間（UTC）"}]}, {"id": "t3", "name": "products", "note": "產品", "fields": [{"id": "c1", "name": "id", "type": "bigint", "key": "PK", "note": ""}, {"id": "c2", "name": "sku", "type": "varchar", "key": "UK", "note": "料號"}, {"id": "c3", "name": "name", "type": "varchar", "key": "", "note": "品名"}, {"id": "c4", "name": "price", "type": "decimal", "key": "", "note": "單價"}]}, {"id": "t4", "name": "order_items", "note": "訂單明細：多對多的中間表", "fields": [{"id": "d1", "name": "id", "type": "bigint", "key": "PK", "note": ""}, {"id": "d2", "name": "order_id", "type": "bigint", "key": "FK", "note": "哪張訂單"}, {"id": "d3", "name": "product_id", "type": "bigint", "key": "FK", "note": "哪個產品；與 order_id 複合唯一"}, {"id": "d4", "name": "qty", "type": "int", "key": "", "note": "數量"}]}], "rels": [{"id": "r1", "a": "t1", "b": "t2", "kind": "||--o{", "label": "下單"}, {"id": "r2", "a": "t2", "b": "t4", "kind": "||--|{", "label": "包含"}, {"id": "r3", "a": "t3", "b": "t4", "kind": "||--o{", "label": "被訂購"}], "mind": {"id": "root", "text": "訂單系統", "children": [{"id": "m1", "text": "下單", "children": [{"id": "m11", "text": "選產品", "children": []}, {"id": "m12", "text": "確認數量", "children": []}]}, {"id": "m2", "text": "出貨", "children": [{"id": "m21", "text": "撿貨", "children": []}, {"id": "m22", "text": "物流單號", "children": []}]}, {"id": "m3", "text": "報表", "children": [{"id": "m31", "text": "每月營收", "children": []}]}]}, "notes": "【已決定】\n1. 訂單和產品是多對多，用 order_items 中間表。\n\n【待決定】\nQ1. 訂單取消要刪除，還是改狀態保留紀錄？\n", "savedAt": ""}</script>
+<template id="tpl">
+<div class="wrap">
+  <header>
+    <div>
+      <a class="backlink" href="./#dev">← 回到工具站</a>
+      <h1>設計草稿板</h1>
+      <p class="sub">用表單畫 ER 圖或心智圖，右邊即時出圖。資料存在這個瀏覽器裡；換電腦或備份請用「匯出／匯入」。</p>
+    </div>
+    <div class="actions">
+      <span id="status" class="chip">載入中</span>
+      <button id="new" type="button" title="清空成空白草稿">新建</button>
+      <button id="export" type="button" title="下載成 JSON 檔備份">匯出</button>
+      <button id="import" type="button" title="讀入之前匯出的 JSON 檔">匯入</button>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+      <button id="save" class="primary" type="button" title="Ctrl / ⌘ + S">儲存</button>
+    </div>
+  </header>
+  <div id="banner" class="banner" hidden>
+    <p id="banner-msg"></p>
+    <button id="banner-a" type="button"></button>
+    <button id="banner-b" type="button"></button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button id="tab-er" class="tab" type="button" role="tab" aria-selected="true" aria-controls="pane-er">ER 圖</button>
+    <button id="tab-mind" class="tab" type="button" role="tab" aria-selected="false" aria-controls="pane-mind">心智圖</button>
+  </div>
+  <main>
+    <div class="col">
+      <div id="pane-er" class="pane" role="tabpanel">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>資料表</h2>
+            <button id="add-table" class="add" type="button">＋ 新增資料表</button>
+          </div>
+          <p class="hint">表名和欄位名請用英文小寫加底線（例如 test_results），說明欄可以寫中文。</p>
+          <div id="tables"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>關係</h2>
+            <button id="add-rel" class="add" type="button">＋ 新增關係</button>
+          </div>
+          <p class="hint">讀法：左邊表的「一筆」資料，對應右邊表的幾筆。例如「一個序號 → 多筆測試結果」。</p>
+          <div id="rels"></div>
+        </section>
+        <section class="panel">
+          <details>
+            <summary>ER 圖上的符號怎麼看</summary>
+            <dl class="legend" style="margin-top:10px">
+              <b>一條直線 |</b><span>剛好一筆</span>
+              <b>圓圈 o</b><span>可以是零筆</span>
+              <b>三叉（雞爪）</b><span>多筆</span>
+              <b>PK / FK / UK</b><span>主鍵／外鍵／唯一鍵</span>
+            </dl>
+          </details>
+        </section>
+      </div>
+      <div id="pane-mind" class="pane" role="tabpanel" hidden>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>心智圖</h2>
+            <button id="add-branch" class="add" type="button">＋ 新增分支</button>
+          </div>
+          <div class="mroot">
+            <input id="mind-root" placeholder="中心主題，例如：品質數據平台" aria-label="中心主題">
+          </div>
+          <div id="mind"></div>
+          <p class="hint">在項目裡按 <kbd>Enter</kbd> 新增同一層、<kbd>Tab</kbd> 變成上一項的子項目、<kbd>Shift</kbd>+<kbd>Tab</kbd> 往上一層、<kbd>↑</kbd><kbd>↓</kbd> 移動、空白時按 <kbd>Backspace</kbd> 刪除。中文可以直接打。</p>
+        </section>
+      </div>
+      <section class="panel">
+        <label class="cap" for="notes">討論筆記：卡住的地方、還沒決定的事</label>
+        <textarea id="notes" placeholder="例如：送修回來的重測次數要不要歸零？我還沒決定，傾向…"></textarea>
+      </section>
+      <section class="panel">
+        <details>
+          <summary>自動產生的 Mermaid（之後可貼進 ADR 或 README）</summary>
+          <pre id="mm" class="code"></pre>
+          <button id="copy" type="button">複製</button>
+        </details>
+      </section>
+    </div>
+    <section class="panel preview">
+      <div class="panel-head">
+        <span id="preview-cap" class="cap">預覽</span>
+        <div class="tools">
+        <div id="mstyle" class="seg" role="group" aria-label="心智圖樣式" hidden>
+          <button type="button" data-v="tree" aria-pressed="true">樹狀</button>
+          <button type="button" data-v="radial" aria-pressed="false">放射狀（Mermaid）</button>
+        </div>
+        <div id="dl" class="seg" role="group" aria-label="下載" hidden>
+          <button type="button" data-f="png" title="圖片，適合貼到文件或簡報">下載 PNG</button>
+          <button type="button" data-f="svg" title="向量圖，放大不會糊">SVG</button>
+          <button type="button" data-f="md" title="Mermaid 原始碼，GitHub 會直接畫成圖">Mermaid</button>
+        </div>
+        <div class="zoom">
+          <button id="zout" type="button" aria-label="縮小">−</button>
+          <span id="zoomv">符合</span>
+          <button id="zin" type="button" aria-label="放大">＋</button>
+          <button id="zfit" type="button">符合寬度</button>
+        </div>
+        </div>
+      </div>
+      <p id="dlmsg" class="hint" hidden></p>
+      <p class="hint">在圖上滾動滑鼠滾輪可以放大／縮小（以滑鼠位置為中心）；按住 <kbd>空白鍵</kbd> 出現小手，再用滑鼠左鍵拖曳就能移動整張圖。</p>
+      <pre id="err" class="err" hidden></pre>
+      <div id="view"><p class="empty">圖表元件載入中…</p></div>
+    </section>
+  </main>
+</div>
+</template>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script id="app-js">
+(function () {
+  "use strict";
+  var TITLE = "設計草稿板";
+  var RESET = ":root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}";
+  var FONTS = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap";
+  var MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js";
+  var LKEY = "design-board-saved-v1"; // 獨立版：已儲存的內容放在 localStorage
+  var DKEY = "design-board-draft-v3", TKEY = "design-board-tab", SKEY = "design-board-mstyle";
+  var TYPES = ["bigint", "int", "varchar", "text", "decimal", "float", "bool", "datetime", "date", "time", "json", "enum"];
+  var KEYS = [["", "—"], ["PK", "PK 主鍵"], ["FK", "FK 外鍵"], ["UK", "UK 唯一"], ["PK, FK", "PK＋FK"]];
+  var KINDS = [
+    ["||--o{", "1 → 多（可以 0 筆）"],
+    ["||--|{", "1 → 多（至少 1 筆）"],
+    ["||--||", "1 → 1"],
+    ["||--o|", "1 → 0 或 1"],
+    ["|o--o{", "0或1 → 多（外鍵可空）"],
+    ["}o--o{", "多 ↔ 多（要拆中間表）"]
+  ];
+  var NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  var tpl = document.getElementById("tpl");
+  document.getElementById("app").appendChild(tpl.content.cloneNode(true));
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- state: saved copy lives in the page's #er-data block ----
+  function emptyMind() { return { id: "root", text: "", children: [] }; }
+  function norm(o) {
+    o = o || {};
+    return { tables: o.tables || [], rels: o.rels || [], mind: o.mind || emptyMind(), notes: o.notes || "" };
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(norm(o))); }
+  function key(o) { return JSON.stringify(norm(o)); }
+  function uid(p) { return p + Math.random().toString(36).slice(2, 9); }
+
+  var saved;
+  try { saved = JSON.parse($("er-data").textContent); } catch (e) { saved = {}; }
+  var savedAt = saved.savedAt || "";
+  try { var ls = JSON.parse(localStorage.getItem(LKEY) || "null"); if (ls && ls.tables) { saved = ls; savedAt = ls.savedAt || ""; } } catch (e) {}
+  saved = clone(saved);
+  var st = clone(saved);
+
+  var art = null, readOnly = false, saving = false;
+  var tab = "er";
+  try { if (localStorage.getItem(TKEY) === "mind") tab = "mind"; } catch (e) {}
+
+  // ---- per-viewer draft so unsaved edits survive a reload ----
+  function readDraft() { try { return JSON.parse(localStorage.getItem(DKEY) || "null"); } catch (e) { return null; } }
+  function writeDraft() { try { var d = norm(st); d.base = savedAt; localStorage.setItem(DKEY, JSON.stringify(d)); } catch (e) {} }
+  function clearDraft() { try { localStorage.removeItem(DKEY); } catch (e) {} }
+  function isDirty() { return key(st) !== key(saved); }
+
+  function showBanner(msg, a, onA, b, onB) {
+    $("banner-msg").textContent = msg;
+    $("banner-a").textContent = a; $("banner-a").onclick = function () { onA(); $("banner").hidden = true; };
+    $("banner-b").textContent = b; $("banner-b").onclick = function () { onB(); $("banner").hidden = true; };
+    $("banner").hidden = false;
+  }
+  var d = readDraft();
+  if (d && key(d) !== key(saved)) {
+    st = clone(d);
+    var useLatest = function () { st = clone(saved); clearDraft(); renderAll(); };
+    if (d.base !== savedAt) {
+      showBanner("你有未儲存的草稿，但之後有新的儲存版本（可能是另一個分頁存的）。目前顯示的是你的草稿。", "保留我的草稿", function () {}, "改看最新版本", useLatest);
+    } else {
+      showBanner("已還原你上次未儲存的修改。", "好", function () {}, "放棄修改", useLatest);
+    }
+  } else if (d) { clearDraft(); }
+
+  function changed() { writeDraft(); updateStatus(); scheduleRender(); }
+
+  // ---- small DOM helpers ----
+  function el(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === "text") n.textContent = attrs[k];
+      else if (k === "value") n.value = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    });
+    (kids || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+  function selectEl(opts, value, attrs) {
+    var s = el("select", attrs);
+    opts.forEach(function (o) { s.appendChild(el("option", { value: o[0], text: o[1] })); });
+    s.value = value;
+    return s;
+  }
+  function markName(input) { input.classList.toggle("bad", input.value !== "" && !NAME_RE.test(input.value)); }
+  // two-click delete so nothing disappears by accident (no confirm() in artifacts)
+  function armed(btn, label, onDelete) {
+    var t = null;
+    btn.addEventListener("click", function () {
+      if (btn.classList.contains("armed")) { clearTimeout(t); onDelete(); return; }
+      btn.classList.add("armed"); btn.textContent = "確認刪除";
+      t = setTimeout(function () { btn.classList.remove("armed"); btn.textContent = label; }, 3000);
+    });
+    return btn;
+  }
+
+  // ================= ER editor =================
+  function renderTables() {
+    var box = $("tables"); box.textContent = "";
+    if (!st.tables.length) { box.appendChild(el("p", { "class": "empty", text: "還沒有資料表。按右上「＋ 新增資料表」開始，例如先建 units（序號）。" })); return; }
+    st.tables.forEach(function (t) {
+      var name = el("input", { "class": "tname", id: "tn-" + t.id, value: t.name, placeholder: "表名，例如 units", "aria-label": "表名", spellcheck: "false", autocapitalize: "off" });
+      markName(name);
+      name.addEventListener("input", function () { t.name = name.value.trim(); markName(name); changed(); });
+      name.addEventListener("change", renderRels);
+      var note = el("input", { "class": "tnote", id: "tc-" + t.id, value: t.note || "", placeholder: "這張表存什麼（中文）", "aria-label": "表說明" });
+      note.addEventListener("input", function () { t.note = note.value; changed(); });
+
+      var fields = el("div", { "class": "fields" }, [
+        el("div", { "class": "fhead" }, [el("span", { text: "欄位名" }), el("span", { text: "型別" }), el("span", { text: "鍵" }), el("span", { text: "說明" }), el("span")])
+      ]);
+      t.fields.forEach(function (f, i) {
+        var fn = el("input", { "class": "fname", id: "fn-" + f.id, value: f.name, placeholder: "欄位名", "aria-label": "欄位名", spellcheck: "false", autocapitalize: "off" });
+        markName(fn);
+        fn.addEventListener("input", function () { f.name = fn.value.trim(); markName(fn); changed(); });
+        var ft = selectEl(TYPES.map(function (x) { return [x, x]; }), f.type, { id: "ft-" + f.id, "aria-label": "型別" });
+        ft.addEventListener("change", function () { f.type = ft.value; changed(); });
+        var fk = selectEl(KEYS, f.key || "", { id: "fk-" + f.id, "aria-label": "鍵" });
+        fk.addEventListener("change", function () { f.key = fk.value; changed(); });
+        var fnote = el("input", { "class": "fnote", id: "fc-" + f.id, value: f.note || "", placeholder: "說明（可空白）", "aria-label": "欄位說明" });
+        fnote.addEventListener("input", function () { f.note = fnote.value; changed(); });
+        var del = el("button", { type: "button", "class": "x", "aria-label": "刪除欄位", title: "刪除欄位", text: "✕" });
+        del.addEventListener("click", function () { t.fields.splice(i, 1); renderTables(); changed(); });
+        fields.appendChild(el("div", { "class": "frow" }, [fn, ft, fk, fnote, del]));
+      });
+
+      var addF = el("button", { type: "button", "class": "add", text: "＋ 欄位" });
+      addF.addEventListener("click", function () {
+        var nf = { id: uid("f"), name: "", type: "varchar", key: "", note: "" };
+        t.fields.push(nf); renderTables(); changed();
+        var inp = $("fn-" + nf.id); if (inp) inp.focus();
+      });
+      var delT = armed(el("button", { type: "button", "class": "danger", text: "刪除這張表" }), "刪除這張表", function () {
+        st.tables = st.tables.filter(function (x) { return x !== t; });
+        st.rels = st.rels.filter(function (r) { return r.a !== t.id && r.b !== t.id; });
+        renderTables(); renderRels(); changed();
+      });
+      box.appendChild(el("div", { "class": "tcard" }, [
+        el("div", { "class": "thead" }, [name, note]),
+        fields,
+        el("div", { "class": "tfoot" }, [addF, delT])
+      ]));
+    });
+  }
+  function tableOpts() {
+    return [["", "選擇資料表"]].concat(st.tables.map(function (t) { return [t.id, t.name || "（未命名）"]; }));
+  }
+  function renderRels() {
+    var box = $("rels"); box.textContent = "";
+    if (!st.rels.length) {
+      box.appendChild(el("p", { "class": "empty", text: st.tables.length < 2 ? "先建立至少兩張資料表，再來連關係。" : "還沒有關係。按「＋ 新增關係」把兩張表連起來。" }));
+      return;
+    }
+    st.rels.forEach(function (r, i) {
+      var a = selectEl(tableOpts(), r.a, { id: "ra-" + r.id, "aria-label": "左邊的表" });
+      a.addEventListener("change", function () { r.a = a.value; changed(); });
+      var k = selectEl(KINDS, r.kind, { id: "rk-" + r.id, "aria-label": "對應關係" });
+      k.addEventListener("change", function () { r.kind = k.value; changed(); });
+      var b = selectEl(tableOpts(), r.b, { id: "rb-" + r.id, "aria-label": "右邊的表" });
+      b.addEventListener("change", function () { r.b = b.value; changed(); });
+      var lab = el("input", { id: "rl-" + r.id, value: r.label || "", placeholder: "動詞，例如「測試」", "aria-label": "關係說明" });
+      lab.addEventListener("input", function () { r.label = lab.value; changed(); });
+      var del = el("button", { type: "button", "class": "x", "aria-label": "刪除關係", title: "刪除關係", text: "✕" });
+      del.addEventListener("click", function () { st.rels.splice(i, 1); renderRels(); changed(); });
+      box.appendChild(el("div", { "class": "rrow" }, [a, k, b, lab, del]));
+    });
+  }
+  $("add-table").addEventListener("click", function () {
+    var t = { id: uid("t"), name: "", note: "", fields: [{ id: uid("f"), name: "id", type: "bigint", key: "PK", note: "" }] };
+    st.tables.push(t); renderTables(); renderRels(); changed();
+    var inp = $("tn-" + t.id); if (inp) { inp.focus(); inp.scrollIntoView({ block: "nearest" }); }
+  });
+  $("add-rel").addEventListener("click", function () {
+    var r = { id: uid("r"), a: st.tables[0] ? st.tables[0].id : "", b: st.tables[1] ? st.tables[1].id : "", kind: "||--o{", label: "" };
+    st.rels.push(r); renderRels(); changed();
+  });
+
+  // ================= Mind map editor (outline) =================
+  function findNode(id, node, parent) {
+    node = node || st.mind;
+    if (node.id === id) return { node: node, parent: parent || null };
+    for (var i = 0; i < node.children.length; i++) {
+      var r = findNode(id, node.children[i], node);
+      if (r) return r;
+    }
+    return null;
+  }
+  function flat() { // visible order of all branch nodes
+    var out = [];
+    (function walk(list) { list.forEach(function (n) { out.push(n); walk(n.children); }); })(st.mind.children);
+    return out;
+  }
+  function newNode() { return { id: uid("m"), text: "", children: [] }; }
+  function focusNode(id, atStart) {
+    var inp = id === "root" ? $("mind-root") : $("mn-" + id);
+    if (!inp) return;
+    inp.focus();
+    var p = atStart ? 0 : inp.value.length;
+    try { inp.setSelectionRange(p, p); } catch (e) {}
+  }
+  function mindChanged(focusId) { renderMind(); changed(); if (focusId) focusNode(focusId); }
+
+  function addSibling(n) {
+    var f = findNode(n.id), nn = newNode();
+    f.parent.children.splice(f.parent.children.indexOf(n) + 1, 0, nn);
+    mindChanged(nn.id);
+  }
+  function addChild(n) { var nn = newNode(); n.children.push(nn); mindChanged(nn.id); }
+  function indent(n) {
+    var f = findNode(n.id), sibs = f.parent.children, i = sibs.indexOf(n);
+    if (i === 0) return;
+    sibs.splice(i, 1); sibs[i - 1].children.push(n);
+    mindChanged(n.id);
+  }
+  function outdent(n) {
+    var f = findNode(n.id);
+    if (f.parent === st.mind) return;
+    var g = findNode(f.parent.id);
+    f.parent.children.splice(f.parent.children.indexOf(n), 1);
+    g.parent.children.splice(g.parent.children.indexOf(f.parent) + 1, 0, n);
+    mindChanged(n.id);
+  }
+  function removeNode(n) {
+    var order = flat(), i = order.indexOf(n), f = findNode(n.id);
+    f.parent.children.splice(f.parent.children.indexOf(n), 1);
+    var prev = i > 0 ? order[i - 1] : null;
+    mindChanged(prev && findNode(prev.id) ? prev.id : "root");
+  }
+  function moveFocus(n, dir) {
+    var order = flat(), i = order.indexOf(n) + dir;
+    if (i < 0) focusNode("root"); else if (i < order.length) focusNode(order[i].id);
+  }
+
+  function renderMind() {
+    $("mind-root").value = st.mind.text;
+    var box = $("mind"); box.textContent = "";
+    if (!st.mind.children.length) {
+      box.appendChild(el("p", { "class": "empty", text: "先寫中心主題，再按「＋ 新增分支」（或在中心主題按 Enter）往外長。" }));
+      return;
+    }
+    (function walk(list, depth) {
+      list.forEach(function (n) {
+        var row = el("div", { "class": "mrow" });
+        for (var g = 1; g < depth; g++) row.appendChild(el("span", { "class": "guide", "aria-hidden": "true" }));
+        row.appendChild(el("span", { "class": "dot" + (n.children.length ? "" : " leaf"), "aria-hidden": "true" }));
+        var inp = el("input", { id: "mn-" + n.id, value: n.text, placeholder: depth === 1 ? "分支" : "想法", "aria-label": "第 " + depth + " 層項目" });
+        inp.addEventListener("input", function () { n.text = inp.value; changed(); });
+        inp.addEventListener("keydown", function (e) {
+          if (e.isComposing || e.keyCode === 229) return; // 中文輸入法選字中，不攔截
+          if (e.key === "Enter") { e.preventDefault(); addSibling(n); }
+          else if (e.key === "Tab") { e.preventDefault(); if (e.shiftKey) outdent(n); else indent(n); }
+          else if (e.key === "Backspace" && inp.value === "" && !n.children.length) { e.preventDefault(); removeNode(n); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); moveFocus(n, -1); }
+          else if (e.key === "ArrowDown") { e.preventDefault(); moveFocus(n, 1); }
+        });
+        var addC = el("button", { type: "button", "class": "mini", title: "在這項底下新增子項目", text: "＋子項" });
+        addC.addEventListener("click", function () { addChild(n); });
+        var del = el("button", { type: "button", "class": "x", "aria-label": "刪除", title: n.children.length ? "刪除（含底下所有子項目）" : "刪除", text: "✕" });
+        if (n.children.length) armed(del, "✕", function () { removeNode(n); });
+        else del.addEventListener("click", function () { removeNode(n); });
+        row.appendChild(inp); row.appendChild(addC); row.appendChild(del);
+        box.appendChild(row);
+        walk(n.children, depth + 1);
+      });
+    })(st.mind.children, 1);
+  }
+  $("mind-root").addEventListener("input", function () { st.mind.text = $("mind-root").value; changed(); });
+  $("mind-root").addEventListener("keydown", function (e) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === "Enter") { e.preventDefault(); var nn = newNode(); st.mind.children.unshift(nn); mindChanged(nn.id); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); var o = flat(); if (o.length) focusNode(o[0].id); }
+  });
+  $("add-branch").addEventListener("click", function () { addChild(st.mind); });
+
+  // ================= shared =================
+  $("notes").addEventListener("input", function () { st.notes = $("notes").value; changed(); });
+  function renderAll() { renderTables(); renderRels(); renderMind(); $("notes").value = st.notes; updateStatus(); scheduleRender(0); }
+
+  function setTab(t) {
+    tab = t;
+    try { localStorage.setItem(TKEY, t); } catch (e) {}
+    $("tab-er").setAttribute("aria-selected", String(t === "er"));
+    $("tab-mind").setAttribute("aria-selected", String(t === "mind"));
+    $("pane-er").hidden = t !== "er";
+    $("pane-mind").hidden = t !== "mind";
+    $("preview-cap").textContent = t === "er" ? "ER 圖預覽" : "心智圖預覽";
+    $("mstyle").hidden = t !== "mind";
+    zoom = null;
+    scheduleRender(0);
+  }
+  $("tab-er").addEventListener("click", function () { setTab("er"); });
+  $("tab-mind").addEventListener("click", function () { setTab("mind"); });
+
+  // ---- Mermaid generation ----
+  function q(s) { return String(s || "").replace(/["\r\n`]/g, " ").replace(/\s+/g, " ").trim(); }
+  function genER() {
+    var lines = ["erDiagram"], problems = [], byId = {};
+    st.tables.forEach(function (t) {
+      if (!t.name) { problems.push("有一張表還沒取名"); return; }
+      if (!NAME_RE.test(t.name)) { problems.push("表名「" + t.name + "」只能用英文、數字、底線，且不能數字開頭"); return; }
+      byId[t.id] = t.name;
+      if (t.note) lines.push("    %% " + t.name + "：" + q(t.note));
+      var rows = [];
+      t.fields.forEach(function (f) {
+        if (!f.name) return;
+        if (!NAME_RE.test(f.name)) { problems.push(t.name + " 的欄位「" + f.name + "」只能用英文、數字、底線"); return; }
+        var line = "        " + f.type + " " + f.name;
+        if (f.key) line += " " + f.key;
+        if (q(f.note)) line += ' "' + q(f.note) + '"';
+        rows.push(line);
+      });
+      if (rows.length) { lines.push("    " + t.name + " {"); lines.push.apply(lines, rows); lines.push("    }"); }
+      else lines.push("    " + t.name);
+    });
+    st.rels.forEach(function (r) {
+      if (!byId[r.a] || !byId[r.b]) { if (r.a || r.b) problems.push("有一條關係的兩端還沒選好表（或表名有誤）"); return; }
+      lines.push("    " + byId[r.a] + " " + r.kind + " " + byId[r.b] + ' : "' + q(r.label) + '"');
+    });
+    var empty = !st.tables.length;
+    return { text: lines.join("\n") + "\n", problems: problems, empty: empty, emptyMsg: "新增資料表後，ER 圖會出現在這裡。" };
+  }
+  function genMind() {
+    var lines = ["mindmap"], c = 0;
+    lines.push('  root(("' + (q(st.mind.text) || "中心主題") + '"))');
+    (function walk(list, depth) {
+      list.forEach(function (n) {
+        var t = q(n.text);
+        if (!t && !n.children.length) return; // 空白的葉子先不畫
+        lines.push("  ".repeat(depth + 1) + "n" + (++c) + '["' + (t || "…") + '"]');
+        walk(n.children, depth + 1);
+      });
+    })(st.mind.children, 1);
+    var empty = !q(st.mind.text) && !st.mind.children.length;
+    return { text: lines.join("\n") + "\n", problems: [], empty: empty, emptyMsg: "寫下中心主題後，心智圖會出現在這裡。" };
+  }
+
+  // ---- horizontal tree mind map (drawn by the page itself, not Mermaid) ----
+  var mstyle = "tree";
+  try { if (localStorage.getItem(SKEY) === "radial") mstyle = "radial"; } catch (e) {}
+  function setStyle(v) {
+    mstyle = v;
+    try { localStorage.setItem(SKEY, v); } catch (e) {}
+    Array.prototype.forEach.call($("mstyle").querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
+    zoom = null; scheduleRender(0);
+  }
+  Array.prototype.forEach.call($("mstyle").querySelectorAll("button"), function (b) { b.addEventListener("click", function () { setStyle(b.getAttribute("data-v")); }); });
+
+  var FACE = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif';
+  var BRANCH = ["#a020c8", "#2f7fd6", "#17956a", "#d4761f", "#c8336a", "#6b5bd6"];
+  var mctx = document.createElement("canvas").getContext("2d");
+  function fontFor(depth) { return depth === 0 ? "600 20px " + FACE : depth === 1 ? "600 16px " + FACE : "400 15px " + FACE; }
+  function textW(t, f) { mctx.font = f; return mctx.measureText(t).width; }
+  function esc(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function treeSvg() {
+    var ROW = 46, GAP = 64, PAD = 36, BOXPX = 22, BOXH = 54, TXTPAD = 8;
+    function prep(n, depth, color) {
+      var label = q(n.text) || (depth === 0 ? "中心主題" : "…");
+      var kids = [];
+      n.children.forEach(function (c, i) {
+        if (!q(c.text) && !c.children.length) return;
+        kids.push(prep(c, depth + 1, depth === 0 ? BRANCH[kids.length % BRANCH.length] : color));
+      });
+      var w = textW(label, fontFor(depth)) + (depth === 0 ? BOXPX * 2 : 0);
+      return { label: label, w: w, depth: depth, kids: kids, color: color, empty: !q(n.text) };
+    }
+    var root = prep(st.mind, 0, BRANCH[0]);
+    var nextY = 0;
+    (function layY(n) {
+      if (!n.kids.length) { n.y = nextY; nextY += ROW; return; }
+      n.kids.forEach(layY);
+      n.y = (n.kids[0].y + n.kids[n.kids.length - 1].y) / 2;
+    })(root);
+    var nodes = [];
+    (function layX(n, x) {
+      n.x = x; nodes.push(n);
+      n.kids.forEach(function (k) { layX(k, x + n.w + GAP + (n.depth === 0 ? 0 : TXTPAD)); });
+    })(root, PAD);
+    var minY = Infinity, maxY = -Infinity, maxX = 0;
+    nodes.forEach(function (n) { minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y); maxX = Math.max(maxX, n.x + n.w); });
+    var oy = PAD + BOXH / 2 - minY;
+    var W = Math.ceil(maxX + PAD), H = Math.ceil(maxY - minY + PAD * 2 + BOXH);
+    var out = [];
+    out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="心智圖">');
+    out.push('<defs><pattern id="mdots" width="14" height="14" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.1" style="fill:var(--dot)"/></pattern></defs>');
+    out.push('<rect width="' + W + '" height="' + H + '" style="fill:var(--canvas)"/><rect width="' + W + '" height="' + H + '" fill="url(#mdots)"/>');
+    // connectors: parent's right edge -> child's left edge, as an S-curve
+    nodes.forEach(function (n) {
+      var sx = n.x + n.w + (n.depth === 0 ? 0 : TXTPAD), sy = n.y + oy;
+      n.kids.forEach(function (k) {
+        var ex = k.x - TXTPAD + 2, ey = k.y + oy, mx = sx + (ex - sx) * 0.5;
+        out.push('<path d="M' + sx + " " + sy + " C" + mx + " " + sy + " " + mx + " " + ey + " " + ex + " " + ey + '" fill="none" stroke="' + k.color + '" stroke-width="' + (k.depth === 1 ? 3.5 : 2.5) + '" stroke-linecap="round"/>');
+      });
+    });
+    nodes.forEach(function (n) {
+      var y = n.y + oy;
+      if (n.depth === 0) {
+        out.push('<rect x="' + n.x + '" y="' + (y - BOXH / 2) + '" width="' + n.w + '" height="' + BOXH + '" rx="7" style="fill:var(--root-bg)"/>');
+        out.push('<text x="' + (n.x + n.w / 2) + '" y="' + y + '" text-anchor="middle" dominant-baseline="central" style="font:' + fontFor(0).replace(/"/g, "'") + ';fill:var(--root-ink)">' + esc(n.label) + "</text>");
+      } else {
+        out.push('<text x="' + n.x + '" y="' + y + '" dominant-baseline="central" style="font:' + fontFor(n.depth).replace(/"/g, "'") + ";fill:var(" + (n.empty ? "--faint" : "--ink") + ')">' + esc(n.label) + "</text>");
+      }
+    });
+    out.push("</svg>");
+    return out.join("");
+  }
+
+  // ---- rendering ----
+  var seq = 0, timer = null, zoom = null;
+  var view = $("view"), errBox = $("err");
+  function isDark() {
+    var t = document.documentElement.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return !!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+  }
+  function initMermaid() {
+    if (!window.mermaid) return false;
+    var dark = isDark() && tab !== "er"; // ER 圖固定白底黑字
+    // "base" theme + our own tokens: calmer colors than the default blue/yellow, in both themes
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base",
+      themeVariables: dark
+        ? { darkMode: true, background: "#191e27", primaryColor: "#2a3657", primaryTextColor: "#e5e8ee", primaryBorderColor: "#8aa5f2", lineColor: "#9aa3b3", secondaryColor: "#23324a", tertiaryColor: "#1f2633" }
+        : { background: "#ffffff", primaryColor: "#dfe7fb", primaryTextColor: "#000000", textColor: "#000000", nodeTextColor: "#000000", primaryBorderColor: "#2f55b5", lineColor: "#333333", secondaryColor: "#eef2fb", tertiaryColor: "#f6f8fc", attributeBackgroundColorOdd: "#ffffff", attributeBackgroundColorEven: "#f3f6fc", edgeLabelBackground: "#ffffff" },
+      er: { useMaxWidth: false }, mindmap: { useMaxWidth: false },
+      fontFamily: "Noto Sans TC, PingFang TC, Microsoft JhengHei, sans-serif" });
+    return true;
+  }
+  function applyZoom() {
+    var svg = view.querySelector("svg"); if (!svg) return;
+    var vb = svg.viewBox && svg.viewBox.baseVal;
+    var w = vb && vb.width ? vb.width : svg.getBoundingClientRect().width;
+    var z = zoom === null ? Math.min(1.4, Math.max(0.2, (view.clientWidth - 16) / w)) : zoom;
+    svg.style.width = Math.round(w * z) + "px";
+    $("zoomv").textContent = zoom === null ? "符合" : Math.round(zoom * 100) + "%";
+  }
+  function currentScale() {
+    var svg = view.querySelector("svg");
+    if (!svg || !svg.viewBox.baseVal.width) return 1;
+    return svg.getBoundingClientRect().width / svg.viewBox.baseVal.width;
+  }
+  var lastTab = null;
+  async function render() {
+    var g = tab === "er" ? genER() : genMind(), my = ++seq, thisTab = tab;
+    view.classList.toggle("paper", thisTab === "er");
+    $("mm").textContent = g.text;
+    errBox.textContent = g.problems.length ? "還不能畫進圖裡的部分：\n• " + g.problems.join("\n• ") : "";
+    errBox.hidden = !g.problems.length;
+    if (!window.mermaid) { view.innerHTML = '<p class="empty">圖表元件載入失敗，請重新整理頁面。</p>'; return; }
+    if (g.empty) { view.innerHTML = ""; view.appendChild(el("p", { "class": "empty", text: g.emptyMsg })); lastTab = thisTab; return; }
+    if (thisTab === "mind" && mstyle === "tree") {
+      view.innerHTML = treeSvg(); lastTab = thisTab; applyZoom(); return;
+    }
+    initMermaid();
+    var id = "dg" + my;
+    try {
+      var out = await mermaid.render(id, g.text);
+      if (my !== seq) return;
+      view.innerHTML = out.svg;
+      lastTab = thisTab;
+      applyZoom();
+    } catch (e) {
+      if (my !== seq) return;
+      if (lastTab !== thisTab) view.innerHTML = "";
+      errBox.hidden = false;
+      errBox.textContent = (errBox.textContent ? errBox.textContent + "\n\n" : "") + "圖產生失敗（保留上一張圖）：\n" + String((e && e.message) || e).split("\n").slice(0, 4).join("\n");
+    } finally {
+      ["d" + id, id].forEach(function (x) { var n = document.getElementById(x); if (n && !view.contains(n)) n.remove(); });
+    }
+  }
+  function scheduleRender(ms) { clearTimeout(timer); timer = setTimeout(render, ms == null ? 300 : ms); }
+
+  $("zin").onclick = function () { zoom = Math.min(3, (zoom === null ? currentScale() : zoom) * 1.2); applyZoom(); };
+  $("zout").onclick = function () { zoom = Math.max(0.2, (zoom === null ? currentScale() : zoom) / 1.2); applyZoom(); };
+  $("zfit").onclick = function () { zoom = null; applyZoom(); };
+  window.addEventListener("resize", function () { if (zoom === null) applyZoom(); });
+  // ---- 滾輪縮放：以滑鼠所在位置為中心；觸控板雙指捏合（ctrlKey）也走這裡 ----
+  view.addEventListener("wheel", function (e) {
+    var svg = view.querySelector("svg"); if (!svg) return;
+    e.preventDefault(); // 不讓預覽區或整頁捲動，也擋掉瀏覽器自己的 Ctrl+滾輪縮放
+    var dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? view.clientHeight : 1);
+    var old = zoom === null ? currentScale() : zoom;
+    var nz = Math.min(3, Math.max(0.2, old * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015))));
+    if (Math.abs(nz - old) < 1e-4) return;
+    var vr = view.getBoundingClientRect(), sr = svg.getBoundingClientRect();
+    var px = (e.clientX - sr.left) / old, py = (e.clientY - sr.top) / old; // 滑鼠下的點（未縮放座標）
+    var ox = e.clientX - vr.left, oy = e.clientY - vr.top;
+    zoom = nz; applyZoom();
+    var sr2 = svg.getBoundingClientRect();
+    view.scrollLeft = sr2.left - vr.left + view.scrollLeft + px * nz - ox; // 縮放後讓同一點留在滑鼠下
+    view.scrollTop = sr2.top - vr.top + view.scrollTop + py * nz - oy;
+  }, { passive: false });
+  function onThemeChange() { if (initMermaid()) scheduleRender(0); }
+  try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", onThemeChange); } catch (e) {}
+  new MutationObserver(onThemeChange).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  $("copy").addEventListener("click", function () {
+    var txt = $("mm").textContent, btn = $("copy");
+    try {
+      navigator.clipboard.writeText(txt).then(function () { btn.textContent = "已複製"; setTimeout(function () { btn.textContent = "複製"; }, 1500); },
+        function () { selectMm(); });
+    } catch (e) { selectMm(); }
+  });
+  function selectMm() { var r = document.createRange(); r.selectNodeContents($("mm")); var s = getSelection(); s.removeAllRanges(); s.addRange(r); $("copy").textContent = "已選取，請按 Ctrl+C"; }
+
+  // ---- saving: regenerate the whole page from state and publish it ----
+  function updateStatus() {
+    var s = $("status"), btn = $("save");
+    if (readOnly) { s.className = "chip ro"; s.textContent = "唯讀，無法儲存"; btn.disabled = true; return; }
+    if (saving) { s.className = "chip"; s.textContent = "儲存中…"; btn.disabled = true; return; }
+    if (isDirty()) { s.className = "chip dirty"; s.textContent = "有未儲存的修改"; }
+    else { s.className = "chip ok"; s.textContent = "已儲存"; }
+    btn.disabled = !isDirty();
+  }
+  function buildHtml(state) {
+    var json = JSON.stringify(state).replace(/</g, "\\u003c");
+    return "<!doctype html><html><head><meta charset=utf8><meta name=viewport content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><style>" + RESET + "</style></head><body>"
+      + "<title>" + TITLE + "</title>\n<meta name=\"claude:viewport-fit-sides\" content=\"cover\">\n"
+      + "<link rel=\"stylesheet\" href=\"" + FONTS + "\">\n"
+      + "<style id=\"page-css\">" + $("page-css").textContent + "</style>\n"
+      + "<script type=\"application/json\" id=\"er-data\">" + json + "<\/script>\n"
+      + "<template id=\"tpl\">" + tpl.innerHTML + "</template>\n"
+      + "<div id=\"app\"></div>\n"
+      + "<script src=\"" + MERMAID + "\"><\/script>\n"
+      + "<script id=\"app-js\">" + $("app-js").textContent + "<\/script>\n"
+      + "</body></html>";
+  }
+  async function save() {
+    if (readOnly || saving || !isDirty()) return;
+    saving = true; updateStatus(); writeDraft();
+    var next = norm(st); next.savedAt = new Date().toISOString();
+    try { localStorage.setItem(LKEY, JSON.stringify(next)); } catch (e) {
+      saving = false; updateStatus(); $("status").textContent = "瀏覽器不允許儲存，請用「匯出」備份"; return;
+    }
+    clearDraft(); saved = clone(next); savedAt = next.savedAt; saving = false; updateStatus(); return;
+    try {
+      await art.publish(buildHtml(next));
+      clearDraft();
+      saved = clone(next); savedAt = next.savedAt; saving = false; updateStatus();
+    } catch (e) {
+      saving = false;
+      var code = e && e.code, s = $("status");
+      if (["not_writer", "not_granted", "consent_required", "capability_disabled", "not_declared", "capability_removed"].indexOf(code) >= 0) { readOnly = true; updateStatus(); }
+      else if (code === "conflict") { s.className = "chip dirty"; s.textContent = "有較新的版本，重新載入中（草稿已保留）"; }
+      else if (code === "rate_limited") { updateStatus(); s.textContent = "儲存太頻繁，稍等一下再按"; }
+      else { updateStatus(); s.textContent = "儲存失敗，再按一次儲存"; }
+    }
+  }
+  $("save").addEventListener("click", save);
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) { e.preventDefault(); save(); }
+  });
+
+  // ---- 按住空白鍵 + 左鍵拖曳：平移預覽（只在滑鼠停在預覽區上時接管空白鍵） ----
+  var overView = false, spaceDown = false, dragging = null;
+  function panCursor() { view.classList.toggle("pan", spaceDown); view.classList.toggle("panning", !!dragging); }
+  function stopPan() { spaceDown = false; dragging = null; panCursor(); }
+  function typing(t) { return t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable); }
+  view.addEventListener("mouseenter", function () { overView = true; });
+  view.addEventListener("mouseleave", function () { overView = false; if (!dragging) stopPan(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.code !== "Space" || (!overView && !dragging) || typing(e.target)) return;
+    e.preventDefault(); // 不讓空白鍵捲動整頁或按到按鈕
+    if (!spaceDown) { spaceDown = true; panCursor(); }
+  });
+  document.addEventListener("keyup", function (e) { if (e.code === "Space") stopPan(); });
+  window.addEventListener("blur", stopPan);
+  view.addEventListener("mousedown", function (e) {
+    if (!spaceDown || e.button !== 0) return;
+    e.preventDefault();
+    dragging = { x: e.clientX, y: e.clientY, sl: view.scrollLeft, st: view.scrollTop };
+    panCursor();
+  });
+  window.addEventListener("mousemove", function (e) {
+    if (!dragging) return;
+    view.scrollLeft = dragging.sl - (e.clientX - dragging.x); // 圖跟著滑鼠走
+    view.scrollTop = dragging.st - (e.clientY - dragging.y);
+  });
+  window.addEventListener("mouseup", function () { if (dragging) { dragging = null; panCursor(); } });
+
+  // ---- 下載目前的預覽圖：PNG / SVG / Mermaid(.md) ----
+  var dl = null;
+  function dlMsg(t) { $("dlmsg").textContent = t; $("dlmsg").hidden = !t; }
+  function exportSvg() {
+    var svg = view.querySelector("svg"); if (!svg) return null;
+    var vb = svg.viewBox.baseVal, w = Math.ceil(vb.width), h = Math.ceil(vb.height);
+    var c = svg.cloneNode(true);
+    c.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    c.setAttribute("width", w); c.setAttribute("height", h);
+    c.removeAttribute("style");
+    // 補上背景（Mermaid 的圖本身是透明的），顏色跟畫面上一樣
+    var bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("x", vb.x); bg.setAttribute("y", vb.y); bg.setAttribute("width", vb.width); bg.setAttribute("height", vb.height);
+    bg.setAttribute("fill", getComputedStyle(view).backgroundColor);
+    c.insertBefore(bg, c.firstChild);
+    var txt = new XMLSerializer().serializeToString(c);
+    // CSS 變數離開這個頁面就沒有定義，換成實際顏色
+    var cs = getComputedStyle(document.documentElement);
+    txt = txt.replace(/var\((--[\w-]+)\)/g, function (_, name) { return cs.getPropertyValue(name).trim() || "#000000"; });
+    return { text: '<?xml version="1.0" encoding="UTF-8"?>\n' + txt, w: w, h: h };
+  }
+  function svgToPng(svgText, w, h) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image(), scale = 2; // 2 倍解析度，放大看也清楚
+      img.onload = function () {
+        var cv = document.createElement("canvas");
+        cv.width = w * scale; cv.height = h * scale;
+        var cx = cv.getContext("2d"); cx.scale(scale, scale); cx.drawImage(img, 0, 0, w, h);
+        try { cv.toBlob(function (b) { b ? resolve(b) : reject(new Error("toBlob")); }, "image/png"); } catch (e) { reject(e); }
+      };
+      img.onerror = function () { reject(new Error("load")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+    });
+  }
+  function stamp() { var d = new Date(), z = function (n) { return (n < 10 ? "0" : "") + n; }; return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + "-" + z(d.getHours()) + z(d.getMinutes()); }
+  async function download(fmt) {
+    if (!dl) return;
+    var base = (tab === "er" ? "er-diagram" : "mindmap") + "-" + stamp(), file, data;
+    try {
+      if (fmt === "md") {
+        file = base + ".md";
+        data = "```mermaid\n" + $("mm").textContent + "```\n";
+      } else {
+        var ex = exportSvg();
+        if (!ex) { dlMsg("目前沒有圖可以下載。"); return; }
+        if (fmt === "svg") { file = base + ".svg"; data = ex.text; }
+        else { file = base + ".png"; data = await svgToPng(ex.text, ex.w, ex.h); }
+      }
+      await dl.save({ filename: file, data: data });
+      dlMsg("已下載 " + file);
+    } catch (e) {
+      var code = e && e.code;
+      if (code === "declined") dlMsg("");
+      else if (code === "rate_limited") dlMsg("下載視窗還開著，處理完再按一次。");
+      else if (["unavailable", "not_granted", "capability_disabled", "capability_removed"].indexOf(code) >= 0) { $("dl").hidden = true; dlMsg("這個檢視不能下載檔案。"); }
+      else if (fmt === "png") dlMsg("PNG 產生失敗，請改用 SVG。");
+      else dlMsg("下載失敗，請再試一次。");
+    }
+  }
+  Array.prototype.forEach.call($("dl").querySelectorAll("button"), function (b) { b.addEventListener("click", function () { download(b.getAttribute("data-f")); }); });
+
+  // ---- start ----
+  initMermaid();
+  renderTables(); renderRels(); renderMind(); $("notes").value = st.notes; updateStatus();
+  setTab(tab);
+  setStyle(mstyle);
+  // 獨立版：瀏覽器原生下載
+  function saveFile(name, data) {
+    var blob = data instanceof Blob ? data : new Blob([data], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a"), url = URL.createObjectURL(blob);
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    return Promise.resolve();
+  }
+  dl = { save: function (o) { return saveFile(o.filename, o.data); } };
+  $("dl").hidden = false;
+  $("export").addEventListener("click", function () {
+    saveFile("design-board-" + stamp() + ".json", JSON.stringify(norm(st), null, 2));
+  });
+  $("import").addEventListener("click", function () { $("import-file").click(); });
+  $("import-file").addEventListener("change", function () {
+    var f = this.files && this.files[0]; this.value = ""; if (!f) return;
+    f.text().then(function (txt) {
+      var o = JSON.parse(txt);
+      if (!o || !Array.isArray(o.tables) || !Array.isArray(o.rels)) throw new Error("format");
+      st = clone(o); changed(); renderAll();
+      showBanner("已匯入「" + f.name + "」，還沒儲存。", "好", function () {}, "復原", function () { st = clone(saved); clearDraft(); renderAll(); });
+    }).catch(function () { showBanner("這個檔案不是設計草稿板匯出的 JSON。", "好", function () {}, "關閉", function () {}); });
+  });
+  $("new").addEventListener("click", function () {
+    var before = clone(st);
+    st = clone({}); changed(); renderAll();
+    showBanner("已清空成空白草稿，還沒儲存。", "好", function () {}, "復原", function () { st = before; changed(); renderAll(); });
+  });
+  updateStatus();
+})();
+</script>
+</body>
+</html>
