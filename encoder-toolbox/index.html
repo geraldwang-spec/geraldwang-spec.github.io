@@ -68,6 +68,9 @@ nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap
 .item[aria-current="true"]{background:var(--accent-soft);color:var(--ink);border-color:rgba(74,158,232,.25)}
 .item[aria-current="true"] > svg:first-child{color:var(--accent)}
 .cat[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.sub[hidden]{display:none}
+.item .chev{margin:-6px -6px -6px 0;padding:6px;box-sizing:content-box;border-radius:6px}
+.item .chev:hover{background:rgba(255,255,255,.08)}
 .sub{margin:2px 0 6px 19px!important;padding-left:10px!important;border-left:1px solid var(--line)}
 .sub .item{padding:6px 10px;font-size:14px}
 .sub .item .dot{width:6px;height:6px;border-radius:50%;background:var(--line-2);flex:none}
@@ -220,9 +223,10 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
           ${c.tools.map(t=>`<li><a class="item" href="#${esc(c.id)}/${esc(t.id)}" data-nav="${esc(c.id)}/${esc(t.id)}"><span class="dot"></span><span class="lbl">${esc(t.name)}</span></a></li>`).join('')}
         </ul>
       </li>`).join('');
-    $('navCats').querySelectorAll('.cat').forEach(b=>b.addEventListener('click',()=>{
+    $('navCats').querySelectorAll('.cat').forEach(b=>b.addEventListener('click',e=>{
       const id=b.dataset.cat,cur=parse();
-      if(cur.cat!==id){location.hash=id;open.add(id);return;}
+      // 點箭頭：只收合／展開，不換頁；點名稱：未選中時才跳到該大項
+      if(!e.target.closest('.chev')&&cur.cat!==id){location.hash=id;open.add(id);return;}
       open.has(id)?open.delete(id):open.add(id);
       b.setAttribute('aria-expanded',open.has(id));b.nextElementSibling.hidden=!open.has(id);
     }));
