@@ -19,6 +19,10 @@
 - `pit.html`：KL27 PIT LDVAL 計算
 - `battery.html`：電池續航（容量、耗電流、每個 % 的電壓）
 
+軟體設計（大項 `dev`）：
+
+- `design-board.html`：設計草稿板（用表單畫 ER 圖與心智圖，Mermaid 出圖；資料存在瀏覽器 localStorage，可匯出／匯入 JSON）
+
 ## 新增大項
 
 在 `catalog.js` 的 `CATALOG` 陣列加一個物件：
