@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>點陣編碼示範</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single column tool page; header with back link, controls, canvas, encoded output */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --ink: #1d2725;
+  --muted: #5d6b68;
+  --line: #d3dbd8;
+  --src: #6a5d4d;      --src-bg: #f1ece4;
+  --mid: #1f6f68;      --mid-bg: #e2f0ee;
+  --net: #50607a;      --net-bg: #e6eaf2;
+  --dev: #2c2c2c;      --dev-bg: #ececea;
+  --accent: #1f6f68;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121615; --surface: #1a201f; --ink: #e4ebe9; --muted: #9aa8a5; --line: #2e3836;
+    --src: #d6c3a8; --src-bg: #2a251f;
+    --mid: #7fcfc5; --mid-bg: #16302d;
+    --net: #a9b8d4; --net-bg: #1f2533;
+    --dev: #e0e0dc; --dev-bg: #262624;
+    --accent: #7fcfc5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121615; --surface: #1a201f; --ink: #e4ebe9; --muted: #9aa8a5; --line: #2e3836;
+  --src: #d6c3a8; --src-bg: #2a251f;
+  --mid: #7fcfc5; --mid-bg: #16302d;
+  --net: #a9b8d4; --net-bg: #1f2533;
+  --dev: #e0e0dc; --dev-bg: #262624;
+  --accent: #7fcfc5;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { color-scheme: light; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.backlink, .back { font-size: .86rem; color: var(--accent); text-underline-offset: 2px; font-weight: 500; }
+.back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+header { display: flex; flex-direction: column; gap: 4px; }
+header .tag { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--dev); }
+header h1 { font-size: 1.6rem; font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: .02em; }
+img { max-width: 100%; }
+:root { --px-black: #1b1b1b; --px-white: #f6f6f1; --px-yellow: #e3b81c; --px-red: #c33a2c; }
+.bits { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.bits h2 { font-size: 1.15rem; margin: 0; }
+.bits > p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 72ch; }
+.bits-ctl { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.ctl-g { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ctl-g[hidden] { display: none; }
+.ctl-l { font-size: .74rem; color: var(--muted); font-family: var(--font-mono); letter-spacing: .03em; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; position: relative; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.seg label { padding: 4px 10px; font-size: .84rem; cursor: pointer; background: var(--bg); color: var(--ink); border-right: 1px solid var(--line); white-space: nowrap; }
+.seg label:last-of-type { border-right: 0; }
+.seg input:checked + label { background: var(--mid-bg); color: var(--mid); font-weight: 500; }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; border: 1px solid var(--line); vertical-align: -1px; margin-right: 4px; }
+.pbtn { font: inherit; font-size: .82rem; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); cursor: pointer; }
+.pbtn:hover { border-color: var(--accent); }
+.pbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bits-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.bits-grid-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; overflow-x: auto; }
+.bits-grid { width: max-content; }
+.bits-grid { display: flex; flex-direction: column; gap: 2px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.prow { display: flex; gap: 2px; }
+.px { width: var(--cell, 22px); height: var(--cell, 22px); padding: 0; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; background: var(--px-white); flex: none; }
+.px[data-v="0"] { background: var(--px-black); }
+.px[data-v="2"] { background: var(--px-yellow); }
+.px[data-v="3"] { background: var(--px-red); }
+.px.gb { margin-left: 5px; }
+.px.on { outline: 2px solid var(--accent); outline-offset: 1px; position: relative; z-index: 1; }
+.px:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bits-size { font-family: var(--font-mono); font-size: .74rem; color: var(--muted); }
+.bits-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bits-read { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .86rem; line-height: 1.6; }
+.bits-read code, .bits-stream code { font-family: var(--font-mono); }
+.bits-out-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.bits-out { margin: 0; padding: 10px 12px; font-family: var(--font-mono); font-size: .8rem; line-height: 1.75; color: var(--ink); }
+.bits-out .ry { color: var(--muted); }
+.bits-out .byte { padding: 1px 2px; border-radius: 3px; }
+.bits-out .byte.on { background: var(--mid-bg); }
+.bits-out .pb.on { background: var(--accent); color: var(--surface); border-radius: 2px; }
+.bits-out .hx { color: var(--src); padding: 1px 2px; }
+.bits-out .pad { color: var(--muted); opacity: .5; }
+.nin { font: inherit; font-size: .88rem; width: 4.6em; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+.nin:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.err { font-size: .8rem; color: var(--px-red); }
+.gv { font-family: var(--font-mono); font-size: .78rem; }
+#b-gray { width: 120px; accent-color: var(--accent); }
+.bits-note { margin: 0; font-size: .84rem; color: var(--muted); max-width: 80ch; }
+.sel { width: auto; }
+.cv-wrap { max-width: 100%; max-height: 560px; overflow: auto; }
+#b-canvas { display: block; image-rendering: pixelated; touch-action: none; cursor: crosshair; }
+#b-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bits-cap { font-size: .76rem; color: var(--muted); font-family: var(--font-mono); }
+.st-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
+.copy-msg { font-size: .78rem; color: var(--accent); }
+.bits-out .hx.on { background: var(--src-bg); border-radius: 3px; font-weight: 500; }
+.bits-stream { font-size: .82rem; color: var(--muted); }
+.bits-stream code { color: var(--ink); overflow-wrap: anywhere; display: block; max-height: 7.5em; overflow-y: auto; margin-top: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#learn">← 回到工具站</a>
+  <a class="back" href="epaper-architecture.html">← 回到病床電子紙系統架構</a>
+  <header>
+    <span class="tag">Layer 4 · 裝置層</span>
+    <h1>點陣編碼示範</h1>
+  </header>
+  <section class="bits" aria-labelledby="bits-title">
+    
+    <p>可以設定寬、高（最大 2048）與每點 bit 數，或直接套用常見面板尺寸。在畫布上點擊或拖曳來上色，下方會即時顯示目前位置附近的二進位與十六進位。「床頭卡範例」先用中文字型排版，再依每點 bit 數轉成點陣，模擬中介伺服器產生畫面的過程。編碼對應以常見控制 IC 為例，實際要以面板規格書為準。</p>
+    <div class="bits-ctl">
+      <div class="ctl-g">
+        <label class="ctl-l" for="b-w">寬（px）</label><input id="b-w" class="nin" type="number" min="1" max="2048" value="16" inputmode="numeric">
+        <label class="ctl-l" for="b-h">高（px）</label><input id="b-h" class="nin" type="number" min="1" max="2048" value="8" inputmode="numeric">
+        <span class="err" id="b-err" aria-live="polite"></span>
+      </div>
+      <div class="ctl-g"><span class="ctl-l">常見尺寸</span>
+        <button type="button" class="pbtn" data-size="16x8">16×8</button>
+        <button type="button" class="pbtn" data-size="800x480">800×480</button>
+        <button type="button" class="pbtn" data-size="960x640">960×640</button>
+        <button type="button" class="pbtn" data-size="1872x1404">1872×1404</button>
+      </div>
+      <div class="ctl-g"><span class="ctl-l">每點 bit 數</span>
+        <span class="seg" role="radiogroup" aria-label="每點 bit 數">
+          <input type="radio" name="b-bpp" id="b-bpp-1" value="1" checked><label for="b-bpp-1">1 · 黑白</label>
+          <input type="radio" name="b-bpp" id="b-bpp-2" value="2"><label for="b-bpp-2">2 · 四色</label>
+          <input type="radio" name="b-bpp" id="b-bpp-4" value="4"><label for="b-bpp-4">4 · 16 階灰</label>
+        </span>
+      </div>
+      <div class="ctl-g" id="b-pol-wrap"><span class="ctl-l">極性</span>
+        <span class="seg" role="radiogroup" aria-label="極性">
+          <input type="radio" name="b-pol" id="b-pol-1" value="1" checked><label for="b-pol-1">1 = 白</label>
+          <input type="radio" name="b-pol" id="b-pol-0" value="0"><label for="b-pol-0">0 = 白</label>
+        </span>
+      </div>
+      <div class="ctl-g" id="b-brush-wrap" hidden><span class="ctl-l">畫筆</span>
+        <span class="seg" role="radiogroup" aria-label="畫筆顏色">
+          <input type="radio" name="b-brush" id="b-brush-0" value="0" checked><label for="b-brush-0"><span class="sw" style="background:var(--px-black)"></span>黑 00</label>
+          <input type="radio" name="b-brush" id="b-brush-1" value="1"><label for="b-brush-1"><span class="sw" style="background:var(--px-white)"></span>白 01</label>
+          <input type="radio" name="b-brush" id="b-brush-2" value="2"><label for="b-brush-2"><span class="sw" style="background:var(--px-yellow)"></span>黃 10</label>
+          <input type="radio" name="b-brush" id="b-brush-3" value="3"><label for="b-brush-3"><span class="sw" style="background:var(--px-red)"></span>紅 11</label>
+        </span>
+      </div>
+      <div class="ctl-g" id="b-gray-wrap" hidden>
+        <label class="ctl-l" for="b-gray">畫筆灰階</label>
+        <input type="range" id="b-gray" min="0" max="15" value="0">
+        <span class="sw" id="b-gray-sw"></span><code class="gv" id="b-gray-v"></code>
+      </div>
+      <div class="ctl-g">
+        <label class="ctl-l" for="b-bsize">筆刷</label>
+        <select id="b-bsize" class="nin sel">
+          <option value="1">1 px</option><option value="3">3 px</option><option value="9">9 px</option><option value="25">25 px</option>
+        </select>
+        <label class="ctl-l" for="b-zoom">縮放</label>
+        <select id="b-zoom" class="nin sel">
+          <option value="fit">符合寬度</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option><option value="32">32×</option>
+        </select>
+      </div>
+      <div class="ctl-g"><span class="ctl-l">範例</span>
+        <button type="button" class="pbtn" data-p="card">床頭卡範例</button>
+        <button type="button" class="pbtn" data-p="h">字母 H</button>
+        <button type="button" class="pbtn" data-p="test">方向測試圖</button>
+        <button type="button" class="pbtn" data-p="c4">四色範例</button>
+        <button type="button" class="pbtn" data-p="gray">灰階漸層</button>
+        <button type="button" class="pbtn" data-p="clear">清空</button>
+      </div>
+    </div>
+    <p class="bits-note" id="b-note"></p>
+    <div class="bits-main" id="b-main">
+      <div class="bits-grid-wrap">
+        <div class="cv-wrap"><canvas id="b-canvas" tabindex="0" aria-label="點陣畫布：方向鍵移動位置，Enter 或空白鍵上色"></canvas></div>
+        <div class="bits-size" id="b-size"></div>
+      </div>
+      <div class="bits-side">
+        <div class="bits-read" id="b-read" aria-live="polite"></div>
+        <div class="bits-cap" id="b-cap"></div>
+        <div class="bits-out-wrap"><pre class="bits-out" id="b-out"></pre></div>
+        <div class="bits-stream">
+          <div class="st-h"><span>傳給 8720 的資料（依序）</span><button type="button" class="pbtn" id="b-copy">複製完整資料（十六進位）</button><span class="copy-msg" id="b-copy-msg" aria-live="polite"></span></div>
+          <code id="b-stream"></code>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+(function buildBits(){
+  const MAXW = 2048, MAXH = 2048;
+  const C4 = ["黑", "白", "黃", "紅"];
+  const PAL = [[27, 27, 27], [246, 246, 241], [227, 184, 28], [195, 58, 44]];
+  const QPAL = [[0, 0, 0], [255, 255, 255], [255, 210, 0], [210, 30, 30]];
+  const $ = id => document.getElementById(id);
+  let W = 16, H = 8, bpp = 1, pol = 1, brush = 0, gray = 0, bsize = 1, zoom = "fit", scale = 1;
+  let data = new Uint8Array(W * H).fill(1);
+  let hl = { x: 1, y: 3 }, painting = false, paintVal = 0, last = null, raf = 0;
+  const view = $("b-canvas"), vctx = view.getContext("2d");
+  const off = document.createElement("canvas");
+  let octx = null, img = null;
+  const white = () => bpp === 4 ? 15 : 1;
+  const ppb = () => 8 / bpp;
+  const rowBytes = () => Math.ceil(W / ppb());
+  const hex = v => v.toString(16).toUpperCase().padStart(2, "0");
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function rgbOf(v) {
+    if (bpp === 1) return v ? PAL[1] : PAL[0];
+    if (bpp === 2) return PAL[v];
+    const g = Math.round(27 + v * (246 - 27) / 15); return [g, g, Math.round(g * 0.98)];
+  }
+  function grayColor(v) { const g = Math.round(27 + v * (246 - 27) / 15); return `rgb(${g},${g},${Math.round(g * 0.98)})`; }
+  function bitsOf(v) { return bpp === 1 ? String(v === 1 ? pol : 1 - pol) : v.toString(2).padStart(bpp, "0"); }
+  function name(v) {
+    if (bpp === 1) return v ? "白" : "黑";
+    if (bpp === 2) return C4[v];
+    return v === 0 ? "灰階 0（黑）" : v === 15 ? "灰階 15（白）" : `灰階 ${v}`;
+  }
+  function byteVal(y, bi) {
+    const p = ppb(); let val = 0;
+    for (let k = 0; k < p; k++) {
+      const x = bi * p + k;
+      const v = x < W ? parseInt(bitsOf(data[y * W + x]), 2) : 0;
+      val = (val << bpp) | v;
+    }
+    return val;
+  }
+  function rebuildImage() {
+    off.width = W; off.height = H;
+    octx = off.getContext("2d");
+    img = octx.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) { const c = rgbOf(data[i]); img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255; }
+    octx.putImageData(img, 0, 0);
+  }
+  function setPix(x, y, v) {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    const i = y * W + x; if (data[i] === v) return;
+    data[i] = v; const c = rgbOf(v);
+    img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2];
+  }
+  function stamp(x, y, v) { const r = (bsize - 1) / 2; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) setPix(x + dx, y + dy, v); }
+  function line(a, b, v) {
+    let x0 = a.x, y0 = a.y; const x1 = b.x, y1 = b.y;
+    const dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1, dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) { stamp(x0, y0, v); if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
+  }
+  function computeScale() {
+    const avail = Math.max(60, $("b-main").clientWidth - 26);
+    return zoom === "fit" ? Math.min(40, avail / W) : +zoom;
+  }
+  function layout() {
+    scale = computeScale();
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.max(1, Math.round(W * scale)), ch = Math.max(1, Math.round(H * scale));
+    view.style.width = cw + "px"; view.style.height = ch + "px";
+    view.width = Math.max(1, Math.round(cw * dpr)); view.height = Math.max(1, Math.round(ch * dpr));
+    draw();
+  }
+  function draw() {
+    const sx = view.width / W, sy = view.height / H, dpr = window.devicePixelRatio || 1;
+    vctx.setTransform(1, 0, 0, 1, 0, 0);
+    vctx.imageSmoothingEnabled = false;
+    vctx.clearRect(0, 0, view.width, view.height);
+    vctx.drawImage(off, 0, 0, view.width, view.height);
+    const accent = css("--accent") || "#1f6f68", p = ppb();
+    if (sx >= 6 * dpr) {
+      vctx.strokeStyle = "rgba(128,140,138,.38)"; vctx.lineWidth = 1; vctx.beginPath();
+      for (let x = 1; x < W; x++) { const X = Math.round(x * sx) + .5; vctx.moveTo(X, 0); vctx.lineTo(X, view.height); }
+      for (let y = 1; y < H; y++) { const Y = Math.round(y * sy) + .5; vctx.moveTo(0, Y); vctx.lineTo(view.width, Y); }
+      vctx.stroke();
+    }
+    if (sx >= 3 * dpr) {
+      vctx.strokeStyle = accent; vctx.globalAlpha = .6; vctx.lineWidth = Math.max(1, dpr); vctx.beginPath();
+      for (let x = p; x < W; x += p) { const X = Math.round(x * sx) + .5; vctx.moveTo(X, 0); vctx.lineTo(X, view.height); }
+      vctx.stroke(); vctx.globalAlpha = 1;
+    }
+    if (hl) {
+      const bx = Math.floor(hl.x / p) * p, m = Math.max(0, 4 * dpr - sx) / 2;
+      vctx.strokeStyle = accent; vctx.lineWidth = Math.max(2, 2 * dpr);
+      vctx.strokeRect(bx * sx - m, hl.y * sy - m, Math.min(p, W - bx) * sx + 2 * m, sy + 2 * m);
+      vctx.strokeStyle = css("--px-red") || "#c33a2c"; vctx.lineWidth = Math.max(1.5, 1.5 * dpr);
+      vctx.strokeRect(hl.x * sx - m, hl.y * sy - m, sx + 2 * m, sy + 2 * m);
+    }
+  }
+  function renderOut() {
+    const p = ppb(), rb = rowBytes(), total = rb * H, padPx = rb * p - W;
+    const ROWS = 8, BYTES = bpp === 1 ? 8 : 6;
+    let y0 = H <= ROWS ? 0 : Math.max(0, Math.min(H - ROWS, hl.y - 3)); const y1 = Math.min(H, y0 + ROWS);
+    const hb = Math.floor(hl.x / p);
+    let b0 = rb <= BYTES ? 0 : Math.max(0, Math.min(rb - BYTES, hb - 2)); const b1 = Math.min(rb, b0 + BYTES);
+    const yw = String(H - 1).length;
+    const lines = [];
+    for (let y = y0; y < y1; y++) {
+      let html = "", hx = [];
+      for (let bi = b0; bi < b1; bi++) {
+        let spans = "";
+        for (let k = 0; k < p; k++) {
+          const x = bi * p + k;
+          if (x < W) { const s = bitsOf(data[y * W + x]); spans += `<span class="pb${x === hl.x && y === hl.y ? " on" : ""}">${s}</span>`; }
+          else spans += `<span class="pad">${"0".repeat(bpp)}</span>`;
+        }
+        const on = y === hl.y && bi === hb ? " on" : "";
+        html += `<span class="byte${on}">${spans}</span> `;
+        hx.push(`<span class="hx${on}">${hex(byteVal(y, bi))}</span>`);
+      }
+      lines.push(`<span class="ry">y=${String(y).padStart(yw)}</span> ${b0 > 0 ? '<span class="pad">…</span> ' : ""}${html}${b1 < rb ? '<span class="pad">…</span> ' : ""}→ ${hx.join(" ")}`);
+    }
+    $("b-out").innerHTML = lines.join("\n");
+    $("b-cap").textContent = (H <= ROWS && rb <= BYTES) ? `顯示全部 ${H} 列 × ${rb} bytes` : `顯示第 ${y0}～${y1 - 1} 列、每列第 ${b0}～${b1 - 1} 個 byte（共 ${H.toLocaleString()} 列 × ${rb} bytes），移動游標可切換顯示範圍`;
+    const n = Math.min(total, 64), first = [];
+    for (let i = 0; i < n; i++) first.push(hex(byteVal(Math.floor(i / rb), i % rb)));
+    $("b-stream").textContent = first.join(" ") + (total > n ? ` …（共 ${total.toLocaleString()} bytes）` : "");
+    const kb = total >= 1048576 ? `約 ${(total / 1048576).toFixed(2)} MB` : total >= 1024 ? `約 ${(total / 1024).toFixed(total < 10240 ? 1 : 0)} KB` : "";
+    $("b-size").textContent = padPx
+      ? `每列 ${W} × ${bpp} = ${(W * bpp).toLocaleString()} bits，補到 ${(rb * 8).toLocaleString()} bits = ${rb} bytes；共 ${rb} × ${H} = ${total.toLocaleString()} bytes${kb ? `（${kb}）` : ""}`
+      : `${W} × ${H} × ${bpp} bit ÷ 8 = ${total.toLocaleString()} bytes（${kb ? kb + "，" : ""}每列 ${rb} bytes）`;
+    const notes = [];
+    if (padPx) notes.push(`寬度 ${W} 不是 ${p} 的倍數，每列最後一個 byte 有 ${padPx * bpp} 個補齊用的 0（淡色顯示），面板不會顯示這些位元。`);
+    if (bpp === 1) notes.push(pol ? "黑白以 1 = 白、0 = 黑為例。" : "目前設定 0 = 白、1 = 黑，所有位元會反過來。");
+    if (bpp === 2) notes.push("四色以 00 黑、01 白、10 黃、11 紅為例。");
+    if (bpp === 4) notes.push("16 階灰以 0 = 黑、15 = 白為例，每個 byte 存 2 個點。");
+    $("b-note").textContent = notes.join(" ") + " 實際編碼請以面板規格書為準。";
+    const k = hl.x % p, hi = 7 - bpp * k, lo = hi - bpp + 1, idx = hl.y * rb + hb, v = data[hl.y * W + hl.x];
+    const pos = bpp === 1 ? `bit ${hi}（7 − ${k}）` : `bit ${hi}～bit ${lo}`;
+    $("b-read").innerHTML = `<b>(x ${hl.x}, y ${hl.y})</b> → byte ${idx.toLocaleString()}（從 0 起算：${hl.y} × ${rb} + ${hl.x} ÷ ${p} 取整數）的 ${pos}。目前是${name(v)}，寫成 <code>${bitsOf(v)}</code>。`;
+  }
+  function refresh() { octx.putImageData(img, 0, 0); draw(); renderOut(); }
+  function schedule() { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; refresh(); }); }
+  function full() { rebuildImage(); layout(); renderOut(); }
+  function posOf(e) {
+    const r = view.getBoundingClientRect();
+    return { x: Math.max(0, Math.min(W - 1, Math.floor((e.clientX - r.left) / r.width * W))), y: Math.max(0, Math.min(H - 1, Math.floor((e.clientY - r.top) / r.height * H))) };
+  }
+  const clickVal = q => bpp === 1 ? (data[q.y * W + q.x] === 1 ? 0 : 1) : bpp === 2 ? brush : gray;
+  view.addEventListener("pointerdown", e => {
+    e.preventDefault(); view.focus({ preventScroll: true });
+    try { view.setPointerCapture(e.pointerId); } catch (_) {}
+    const q = posOf(e); paintVal = clickVal(q); painting = true; last = q; hl = q;
+    stamp(q.x, q.y, paintVal); schedule();
+  });
+  view.addEventListener("pointermove", e => {
+    const q = posOf(e);
+    if (painting) { line(last, q, paintVal); last = q; }
+    if (painting || q.x !== hl.x || q.y !== hl.y) { hl = q; schedule(); }
+  });
+  const stop = () => { painting = false; last = null; };
+  view.addEventListener("pointerup", stop); view.addEventListener("pointercancel", stop);
+  view.addEventListener("keydown", e => {
+    const mv = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (mv) { e.preventDefault(); const st = e.shiftKey ? 8 : 1; hl = { x: Math.max(0, Math.min(W - 1, hl.x + mv[0] * st)), y: Math.max(0, Math.min(H - 1, hl.y + mv[1] * st)) }; schedule(); }
+    else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); stamp(hl.x, hl.y, clickVal(hl)); schedule(); }
+  });
+  function lumOf(v, b) { return b === 1 ? (v ? 15 : 0) : b === 2 ? [0, 15, 12, 5][v] : v; }
+  function setBpp(n, convert = true) {
+    if (convert && n !== bpp) { const o = bpp; for (let i = 0; i < data.length; i++) { const l = lumOf(data[i], o); data[i] = n === 4 ? l : (l >= 8 ? 1 : 0); } }
+    bpp = n;
+    $(`b-bpp-${n}`).checked = true;
+    $("b-pol-wrap").hidden = n !== 1; $("b-brush-wrap").hidden = n !== 2; $("b-gray-wrap").hidden = n !== 4;
+    full();
+  }
+  function resize(nw, nh, keep = true) {
+    const old = data, w0 = W, h0 = H;
+    W = nw; H = nh; data = new Uint8Array(W * H).fill(white());
+    if (keep) for (let y = 0; y < Math.min(h0, H); y++) for (let x = 0; x < Math.min(w0, W); x++) data[y * W + x] = old[y * w0 + x];
+    $("b-w").value = W; $("b-h").value = H; $("b-err").textContent = "";
+    if (hl.x >= W || hl.y >= H) hl = { x: 0, y: 0 };
+  }
+  function onSize() {
+    const w = parseInt($("b-w").value, 10), h = parseInt($("b-h").value, 10);
+    if (!(w >= 1 && w <= MAXW) || !(h >= 1 && h <= MAXH)) { $("b-err").textContent = `寬、高請輸入 1～${MAXW}`; return; }
+    $("b-err").textContent = "";
+    if (w !== W || h !== H) { resize(w, h); full(); }
+  }
+  ["b-w", "b-h"].forEach(id => {
+    $(id).addEventListener("input", onSize);
+    $(id).addEventListener("blur", () => { if ($("b-err").textContent) { $("b-w").value = W; $("b-h").value = H; $("b-err").textContent = ""; } });
+  });
+  document.querySelectorAll('input[name="b-bpp"]').forEach(r => r.addEventListener("change", () => setBpp(+r.value)));
+  document.querySelectorAll('input[name="b-pol"]').forEach(r => r.addEventListener("change", () => { pol = +r.value; renderOut(); }));
+  document.querySelectorAll('input[name="b-brush"]').forEach(r => r.addEventListener("change", () => { brush = +r.value; }));
+  function showGray() { $("b-gray-sw").style.background = grayColor(gray); $("b-gray-v").textContent = `${gray} · ${gray.toString(2).padStart(4, "0")}`; }
+  $("b-gray").addEventListener("input", () => { gray = +$("b-gray").value; showGray(); });
+  $("b-bsize").addEventListener("change", () => { bsize = +$("b-bsize").value; });
+  $("b-zoom").addEventListener("change", () => { zoom = $("b-zoom").value; layout(); });
+  const fill = (x, y, w, h, v) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (i >= 0 && j >= 0 && i < W && j < H) data[j * W + i] = v; };
+  function presetH() {
+    data.fill(white()); const u = Math.max(1, Math.floor(Math.min(W / 8, H / 8))), b = bpp === 4 ? 0 : 0;
+    fill(1 * u, 0, u, 7 * u, b); fill(5 * u, 0, u, 7 * u, b); fill(1 * u, 3 * u, 5 * u, u, b);
+    hl = { x: Math.min(W - 1, u), y: Math.min(H - 1, 3 * u) };
+  }
+  function presetCard() {
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const g = c.getContext("2d"), k = Math.min(W / 960, H / 640), F = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+    const pad = 36 * k;
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#000"; g.fillRect(0, 0, W, 120 * k);
+    g.fillStyle = "#fff"; g.textBaseline = "middle";
+    g.font = `700 ${78 * k}px ${F}`; g.fillText("7A‑0302", pad, 62 * k);
+    g.font = `500 ${36 * k}px ${F}`; g.textAlign = "right"; g.fillText("第 7 病房 A 區", W - pad, 62 * k); g.textAlign = "left";
+    g.fillStyle = "#000";
+    g.font = `700 ${100 * k}px ${F}`; g.fillText("王○明", pad, 225 * k);
+    g.font = `500 ${44 * k}px ${F}`; g.fillText("男 · 68 歲", pad + 330 * k, 238 * k);
+    g.font = `400 ${40 * k}px ${F}`;
+    g.fillText("主治醫師　陳志明", pad, 340 * k);
+    g.fillText("責任護理師　林佳慧", pad, 404 * k);
+    g.fillText("入院日　2026/11/02", pad, 468 * k);
+    const tags = [["禁食", 3], ["跌倒高風險", 2], ["過敏：盤尼西林", 3]];
+    let x = pad; const ty = 525 * k, th = 76 * k;
+    g.font = `700 ${38 * k}px ${F}`;
+    tags.forEach(([t, col]) => {
+      const tw = g.measureText(t).width + 44 * k;
+      if (bpp === 2) { g.fillStyle = col === 3 ? "#d21e1e" : "#ffd200"; g.fillRect(x, ty, tw, th); g.fillStyle = col === 3 ? "#fff" : "#000"; }
+      else if (bpp === 4) { g.fillStyle = col === 3 ? "#555" : "#aaa"; g.fillRect(x, ty, tw, th); g.fillStyle = col === 3 ? "#fff" : "#000"; }
+      else { g.fillStyle = "#000"; g.fillRect(x, ty, tw, th); g.fillStyle = "#fff"; g.fillRect(x + 6 * k, ty + 6 * k, tw - 12 * k, th - 12 * k); g.fillStyle = "#000"; }
+      g.fillText(t, x + 22 * k, ty + th / 2); x += tw + 22 * k;
+    });
+    g.fillStyle = "#000"; g.font = `400 ${22 * k}px ${F}`; g.textAlign = "right"; g.fillText("示意資料", W - pad, H - 18 * k); g.textAlign = "left";
+    const px = g.getImageData(0, 0, W, H).data;
+    for (let i = 0; i < W * H; i++) {
+      const r = px[i * 4], gg = px[i * 4 + 1], b = px[i * 4 + 2], l = 0.299 * r + 0.587 * gg + 0.114 * b;
+      if (bpp === 1) data[i] = l >= 128 ? 1 : 0;
+      else if (bpp === 4) data[i] = Math.round(l / 255 * 15);
+      else if (Math.max(r, gg, b) - Math.min(r, gg, b) < 60) data[i] = l >= 128 ? 1 : 0;
+      else { let best = 0, bd = 1e9; for (let q = 0; q < 4; q++) { const d = (r - QPAL[q][0]) ** 2 + (gg - QPAL[q][1]) ** 2 + (b - QPAL[q][2]) ** 2; if (d < bd) { bd = d; best = q; } } data[i] = best; }
+    }
+    hl = { x: Math.min(W - 1, Math.round(pad + 60 * k)), y: Math.min(H - 1, Math.round(225 * k)) };
+  }
+  document.querySelectorAll(".pbtn[data-size]").forEach(b => b.addEventListener("click", () => {
+    const [w, h] = b.dataset.size.split("x").map(Number); resize(w, h); full();
+  }));
+  document.querySelectorAll(".pbtn[data-p]").forEach(b => b.addEventListener("click", () => {
+    const p = b.dataset.p;
+    if (p === "card") {
+      if (W < 120 || H < 80) resize(960, 640, false);
+      const go = () => { presetCard(); full(); };
+      (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(go, go);
+    }
+    else if (p === "h") { if (bpp === 4) setBpp(1, false); presetH(); full(); }
+    else if (p === "test") { if (bpp === 4) setBpp(1, false); data.fill(white()); const q = Math.max(4, Math.round(Math.min(W, H) / 4)), lw = Math.max(1, Math.round(W / 64)); fill(0, 0, q, q, 0); fill(W - lw, 0, lw, H, 0); hl = { x: 0, y: 0 }; full(); }
+    else if (p === "c4") { if (bpp !== 2) setBpp(2, false); data.fill(1); const u = Math.max(1, Math.floor(Math.min(W / 16, H / 8))); fill(u, 0, u, u, 0); fill(2 * u, 0, u, u, 3); fill(3 * u, 0, u, u, 2); fill(0, 2 * u, 4 * u, 4 * u, 3); fill(4 * u, 2 * u, 4 * u, 4 * u, 2); fill(8 * u, 2 * u, 4 * u, 4 * u, 0); hl = { x: Math.min(W - 1, 2 * u), y: 0 }; full(); }
+    else if (p === "gray") { if (bpp !== 4) setBpp(4, false); for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) data[y * W + x] = W === 1 ? 0 : Math.round(x * 15 / (W - 1)); hl = { x: 0, y: 0 }; full(); }
+    else if (p === "clear") { data.fill(white()); full(); }
+  }));
+  $("b-copy").addEventListener("click", () => {
+    const rb = rowBytes(), out = new Array(rb * H);
+    for (let y = 0, i = 0; y < H; y++) for (let bi = 0; bi < rb; bi++) out[i++] = hex(byteVal(y, bi));
+    const text = out.join(" "), msg = $("b-copy-msg");
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => { msg.textContent = `已複製 ${out.length.toLocaleString()} bytes`; }, () => { msg.textContent = "瀏覽器不允許複製"; });
+    } else msg.textContent = "瀏覽器不允許複製";
+  });
+  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(layout, 120); });
+  if (window.matchMedia) { const mq = window.matchMedia("(prefers-color-scheme: dark)"); if (mq.addEventListener) mq.addEventListener("change", draw); }
+  showGray(); presetH(); setBpp(1, false);
+})();
+</script>
+</body>
+</html>
