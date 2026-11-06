@@ -4,7 +4,7 @@
  * 新增一個「大項」：在 CATALOG 陣列加一個物件
  *   { id, name, icon, summary, tools: [...] }
  *   id      網址用的代號（英文、數字、-），例如 "motor"
- *   icon    圖示名稱，可用：encoder、chip、motor、gear、wave、ruler、box、diagram
+ *   icon    圖示名稱，可用：encoder、chip、motor、gear、wave、ruler、box、diagram、book
  *
  * 在大項裡新增一個「工具」：在它的 tools 陣列加一個物件
  *   { id, name, href, summary, tags: [...], points: [...] }
@@ -130,6 +130,30 @@ window.CATALOG = [
         summary: "用表單編輯資料表、欄位和關係，右邊即時畫出 ER 圖；也能畫心智圖、記討論筆記。",
         tags: ["ER 圖", "心智圖", "Mermaid"],
         points: ["PK / FK / UK 與一對多、多對多關係", "滾輪縮放、空白鍵拖曳；下載 PNG / SVG / Mermaid", "存在瀏覽器，可匯出 / 匯入 JSON"]
+      }
+    ]
+  },
+  {
+    id: "learn",
+    name: "學習",
+    icon: "book",
+    summary: "研究新主題時整理的互動筆記：系統怎麼分層、資料怎麼流、數字怎麼算，邊點邊看懂。",
+    tools: [
+      {
+        id: "epaper-arch",
+        name: "病床電子紙系統架構",
+        href: "epaper-architecture.html",
+        summary: "醫院 HIS 到床邊 RTL8720DN 電子紙的四層架構，點區塊和箭頭看職責、通訊方式、需要確認的事項與出處。",
+        tags: ["RTL8720DN", "HL7 / FHIR", "Wi‑Fi"],
+        points: ["四層架構與層間通訊方式（標準 / 自訂）", "圖片處理流程與資料量、SPI 傳輸時間試算", "依詢問對象整理的確認清單與參考資料"]
+      },
+      {
+        id: "epaper-bits",
+        name: "點陣編碼示範",
+        href: "epaper-bits.html",
+        summary: "畫面怎麼變成傳給電子紙的 bytes：自訂寬、高與每點 bit 數，滑過任一點看它在哪個 byte 的哪個 bit。",
+        tags: ["1 / 2 / 4 bpp", "960×640", "MSB 在左"],
+        points: ["黑白、四色、16 階灰三種編碼與極性切換", "床頭卡範例：中文排版後轉成點陣", "補齊位元、每列 bytes 與完整資料複製"]
       }
     ]
   }

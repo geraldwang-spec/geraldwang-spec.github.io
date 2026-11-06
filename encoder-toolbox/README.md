@@ -23,6 +23,11 @@
 
 - `design-board.html`：設計草稿板（用表單畫 ER 圖與心智圖，Mermaid 出圖；資料存在瀏覽器 localStorage，可匯出／匯入 JSON）
 
+學習（大項 `learn`）：
+
+- `epaper-architecture.html`：病床電子紙系統架構（HIS → 中介伺服器 → Wi‑Fi → RTL8720DN 電子紙，含通訊方式、確認清單、圖片處理流程、資料量與 SPI 試算、參考資料）
+- `epaper-bits.html`：點陣編碼示範（自訂寬、高與 1 / 2 / 4 bpp，看每個點落在哪個 byte 的哪個 bit）
+
 ## 新增大項
 
 在 `catalog.js` 的 `CATALOG` 陣列加一個物件：

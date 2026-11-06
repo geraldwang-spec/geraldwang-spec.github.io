@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>病床電子紙系統架構</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: four horizontal layer bands stacked top-down with flow arrows between; blocks are buttons that open a dialog */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --ink: #1d2725;
+  --muted: #5d6b68;
+  --line: #d3dbd8;
+  --src: #6a5d4d;      --src-bg: #f1ece4;
+  --mid: #1f6f68;      --mid-bg: #e2f0ee;
+  --net: #50607a;      --net-bg: #e6eaf2;
+  --dev: #2c2c2c;      --dev-bg: #ececea;
+  --accent: #1f6f68;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121615; --surface: #1a201f; --ink: #e4ebe9; --muted: #9aa8a5; --line: #2e3836;
+    --src: #d6c3a8; --src-bg: #2a251f;
+    --mid: #7fcfc5; --mid-bg: #16302d;
+    --net: #a9b8d4; --net-bg: #1f2533;
+    --dev: #e0e0dc; --dev-bg: #262624;
+    --accent: #7fcfc5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121615; --surface: #1a201f; --ink: #e4ebe9; --muted: #9aa8a5; --line: #2e3836;
+  --src: #d6c3a8; --src-bg: #2a251f;
+  --mid: #7fcfc5; --mid-bg: #16302d;
+  --net: #a9b8d4; --net-bg: #1f2533;
+  --dev: #e0e0dc; --dev-bg: #262624;
+  --accent: #7fcfc5;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.backlink { font-size: .86rem; color: var(--accent); text-underline-offset: 2px; font-weight: 500; align-self: flex-start; }
+
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+header h1 { font-size: 1.6rem; font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: .02em; }
+header p { margin: 4px 0 0; color: var(--muted); max-width: 60ch; }
+.hint { font-family: var(--font-mono); font-size: .78rem; color: var(--muted); letter-spacing: .04em; }
+
+.layers { display: flex; flex-direction: column; gap: 0; }
+.layer {
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  display: grid; grid-template-columns: 150px 1fr; overflow: hidden;
+}
+.layer-head {
+  padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  border-right: 1px solid var(--line);
+}
+.layer-head .tag { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+.layer-head .name { font-weight: 700; font-size: 1rem; }
+.layer-head .owner { font-size: .8rem; color: var(--muted); }
+.layer.src .layer-head { background: var(--src-bg); color: var(--src); }
+.layer.mid .layer-head { background: var(--mid-bg); color: var(--mid); }
+.layer.net .layer-head { background: var(--net-bg); color: var(--net); }
+.layer.dev .layer-head { background: var(--dev-bg); color: var(--dev); }
+.layer-head .owner { color: inherit; opacity: .8; }
+
+.blocks { padding: 14px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); min-width: 0; }
+.layer.mid .blocks { grid-template-columns: repeat(3, 1fr); }
+.blk {
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+  transition: border-color .15s, transform .15s, background .15s;
+}
+.blk:hover { transform: translateY(-1px); }
+.layer.src .blk:hover, .layer.src .blk:focus-visible { border-color: var(--src); }
+.layer.mid .blk:hover, .layer.mid .blk:focus-visible { border-color: var(--mid); }
+.layer.net .blk:hover, .layer.net .blk:focus-visible { border-color: var(--net); }
+.layer.dev .blk:hover, .layer.dev .blk:focus-visible { border-color: var(--dev); }
+.blk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.blk .t { font-weight: 500; }
+.blk .s { font-size: .8rem; color: var(--muted); }
+.blk .more { font-family: var(--font-mono); font-size: .7rem; color: var(--muted); margin-top: 4px; }
+
+.flow { display: flex; padding: 4px 0 4px 54px; }
+.flowbtn {
+  font: inherit; display: flex; align-items: center; gap: 10px; cursor: pointer;
+  background: transparent; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px;
+  padding: 4px 12px; font-size: .8rem; max-width: 100%; text-align: left;
+  transition: border-color .15s, color .15s;
+}
+.flowbtn:hover { border-color: var(--accent); color: var(--ink); }
+.flowbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.flowbtn svg { flex: none; }
+.flowbtn .lbl { font-family: var(--font-mono); font-size: .74rem; min-width: 0; }
+.flowbtn .more { font-size: .72rem; color: var(--accent); white-space: nowrap; }
+.mlist { display: flex; flex-direction: column; gap: 8px; }
+.m { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.mh { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mn { font-weight: 500; }
+.md { font-size: .86rem; color: var(--muted); }
+.badge { font-family: var(--font-mono); font-size: .7rem; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.badge.std { color: var(--mid); background: var(--mid-bg); }
+.badge.hospital { color: var(--src); background: var(--src-bg); }
+.badge.own { color: var(--net); background: var(--net-bg); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .82rem; color: var(--muted); }
+
+dialog {
+  border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(560px, calc(100vw - 32px));
+  background: var(--surface); color: var(--ink); max-height: calc(100vh - 48px);
+}
+dialog::backdrop { background: rgba(10, 20, 18, .45); }
+.dlg-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.dlg-head .tag { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+.dlg-head h2 { margin: 2px 0 0; font-size: 1.25rem; text-wrap: balance; }
+.close {
+  font: inherit; background: transparent; border: 1px solid var(--line); color: var(--ink);
+  border-radius: 6px; padding: 2px 10px; cursor: pointer; flex: none;
+}
+.close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dlg-body { padding: 14px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.dlg-body .lead { margin: 0; font-size: 1rem; }
+.dlg-body h3 { margin: 0 0 4px; font-size: .78rem; font-family: var(--font-mono); letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+.dlg-body ul { margin: 0; padding-left: 1.2em; }
+.dlg-body ul.checks, .dlg-body ul.refs { padding-left: 0; }
+.io { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.io div { background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: .88rem; min-width: 0; }
+.note { border-left: 3px solid var(--accent); border-radius: 0; padding: 4px 0 4px 12px; font-size: .9rem; }
+.dlg-nav { display: flex; justify-content: space-between; gap: 8px; padding: 0 20px 18px; }
+.dlg-nav button { font: inherit; font-size: .85rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.dlg-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dlg-nav button:disabled { opacity: .4; cursor: default; }
+
+.who { font-family: var(--font-mono); font-size: .7rem; padding: 1px 8px; border-radius: 999px; white-space: nowrap; flex: none; }
+.w-it { color: var(--net); background: var(--net-bg); }
+.w-nurse { color: var(--src); background: var(--src-bg); }
+.w-hosp { color: var(--mid); background: var(--mid-bg); }
+.w-self { color: var(--dev); background: var(--dev-bg); }
+.checks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.checks li { display: flex; gap: 8px; align-items: flex-start; font-size: .9rem; line-height: 1.6; }
+.checks .who { margin-top: 3px; }
+.summary { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.summary h2 { font-size: 1.15rem; margin: 0; }
+.summary > p { margin: 0; color: var(--muted); font-size: .88rem; }
+.sgrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.sgroup { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.sgroup h3 { margin: 0 0 8px; font-size: .95rem; display: flex; gap: 8px; align-items: center; }
+.sgroup h3 .n { font-family: var(--font-mono); font-size: .75rem; color: var(--muted); font-weight: 400; }
+.sgroup ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.sitem { font: inherit; text-align: left; background: none; border: 0; padding: 0; color: var(--ink); cursor: pointer; font-size: .88rem; line-height: 1.55; }
+.sitem .src { font-family: var(--font-mono); font-size: .7rem; color: var(--muted); display: block; }
+.sitem:hover .q { text-decoration: underline; }
+.sitem:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.refs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.refs li { font-size: .88rem; line-height: 1.6; }
+.refs a, .srcs a { color: var(--accent); text-underline-offset: 2px; }
+.refs a:focus-visible, .srcs a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.refs .claim { display: block; color: var(--muted); font-size: .84rem; }
+.own { background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: .86rem; color: var(--muted); }
+.own b { color: var(--ink); font-weight: 500; }
+.srcs { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.srcs h2 { font-size: 1.15rem; margin: 0; }
+.srcs > p { margin: 0; color: var(--muted); font-size: .88rem; max-width: 70ch; }
+.srcs ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.srcs li { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; font-size: .88rem; display: flex; flex-direction: column; gap: 4px; }
+.srcs .kind { font-family: var(--font-mono); font-size: .7rem; color: var(--muted); letter-spacing: .04em; }
+.srcs .title a { font-weight: 500; overflow-wrap: anywhere; }
+.srcs .used { color: var(--muted); font-size: .84rem; }
+.srcs .caveat { font-size: .8rem; color: var(--src); }
+.cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cell .blk { flex: 1; }
+.flowcell { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; }
+.cites { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding-left: 2px; }
+.cites-lbl { font-family: var(--font-mono); font-size: .66rem; color: var(--muted); letter-spacing: .04em; margin-right: 2px; }
+.cite {
+  font-family: var(--font-mono); font-size: .68rem; min-width: 22px; height: 20px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--surface);
+  color: var(--accent); text-decoration: none; font-variant-numeric: tabular-nums;
+}
+.cite:hover { border-color: var(--accent); }
+.cite:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cite-own { font-size: .66rem; color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 0 6px; height: 20px; display: inline-flex; align-items: center; }
+.pipe { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.pipe h2 { font-size: 1.15rem; margin: 0; }
+.pipe > p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 72ch; }
+.pipe-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; counter-reset: step; align-items: start; }
+.pg { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.pg-h { padding: 8px 12px; font-size: .8rem; font-weight: 500; display: flex; flex-direction: column; }
+.pg-h .tag { font-family: var(--font-mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; }
+.pg.src .pg-h { background: var(--src-bg); color: var(--src); }
+.pg.mid .pg-h { background: var(--mid-bg); color: var(--mid); }
+.pg.net .pg-h { background: var(--net-bg); color: var(--net); }
+.pg.dev .pg-h { background: var(--dev-bg); color: var(--dev); }
+.pg ol { list-style: none; margin: 0; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.pstep {
+  font: inherit; text-align: left; width: 100%; cursor: pointer; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px; counter-increment: step;
+}
+.pstep::before { content: counter(step); grid-row: span 3; font-family: var(--font-mono); font-size: .72rem; color: var(--muted); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.pstep:hover { border-color: var(--accent); }
+.pstep:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pstep .t { font-weight: 500; font-size: .88rem; }
+.pstep .s { font-size: .78rem; color: var(--muted); }
+.pstep .sz { font-family: var(--font-mono); font-size: .7rem; color: var(--accent); }
+.imgsteps { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 3px; }
+.dlg-body ul.imgsteps { padding-left: 1.2em; }
+@media (max-width: 900px) { .pipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .pipe-grid { grid-template-columns: 1fr; } }
+.calc { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.calc h2 { font-size: 1.15rem; margin: 0; }
+.calc > p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 72ch; }
+.calc-grid { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 14px; }
+.calc-form, .calc-out { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.calc-form { display: flex; flex-direction: column; gap: 6px; }
+.calc-form label { font-size: .76rem; color: var(--muted); font-family: var(--font-mono); letter-spacing: .03em; margin-top: 4px; }
+.calc-form select, .calc-form input { font: inherit; font-size: .9rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; min-width: 0; }
+.calc-form select:focus-visible, .calc-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row2 > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.formula { font-family: var(--font-mono); font-size: .82rem; background: var(--bg); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.kpi { min-width: 0; }
+.kpi .k { font-size: .74rem; color: var(--muted); }
+.kpi .v { font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.kpi .u { font-size: .76rem; color: var(--muted); }
+.cmp { font-size: .84rem; color: var(--muted); margin: 0 0 10px; }
+.bar-h { font-size: .76rem; color: var(--muted); font-family: var(--font-mono); margin-bottom: 4px; }
+.bar { display: flex; height: 22px; border-radius: 5px; overflow: hidden; background: var(--bg); gap: 2px; }
+.bar span { min-width: 3px; }
+.seg-wifi { background: var(--net); } .seg-dl { background: var(--src); } .seg-spi { background: var(--mid); } .seg-ref { background: var(--dev); }
+.barlegend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .78rem; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+.barlegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.tblwrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.tblwrap table { border-collapse: collapse; width: 100%; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.tblwrap th, .tblwrap td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tblwrap th:first-child, .tblwrap td:first-child { text-align: left; }
+.tblwrap thead th { font-size: .74rem; color: var(--muted); font-weight: 500; }
+.tblwrap tbody tr:last-child td { border-bottom: 0; }
+.fine { font-size: .82rem; color: var(--muted); margin: 0; max-width: 80ch; }
+.fine .cite { vertical-align: 1px; }
+@media (max-width: 640px) {
+  .calc-grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .layer { grid-template-columns: 1fr; }
+  .layer-head { border-right: 0; border-bottom: 1px solid var(--line); flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .layer.mid .blocks { grid-template-columns: 1fr 1fr; }
+  .flow { padding-left: 0; }
+  .io { grid-template-columns: 1fr; }
+}
+.layer-link { margin-top: 6px; font-size: .8rem; color: inherit; text-underline-offset: 2px; font-weight: 500; }
+.layer-link:focus-visible, .dlg-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.dlg-link { display: inline-block; font-size: .9rem; color: var(--accent); font-weight: 500; text-underline-offset: 2px; }
+@media (max-width: 640px) { .layer-link { margin-top: 0; } }
+@media (prefers-reduced-motion: reduce) { .blk, .flowbtn { transition: none; } .blk:hover { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="backlink" href="./#learn">← 回到工具站</a>
+  <header>
+    <h1>病床電子紙系統架構</h1>
+    <p>系統分成四層，資料由上往下流：醫院既有系統提供資料，中介伺服器整理成畫面，經醫院 Wi‑Fi 送到每張病床的電子紙。</p>
+  </header>
+  <div class="hint">點任一區塊或層與層之間的箭頭查看說明</div>
+
+  <div class="layers">
+    <section class="layer src" aria-label="第 1 層 資料來源層">
+      <div class="layer-head"><span class="tag">Layer 1</span><span class="name">資料來源層</span><span class="owner">醫院既有，不需修改</span></div>
+      <div class="blocks">
+        <button class="blk" data-k="his"><span class="t">醫院 HIS</span><span class="s">病人、床位、入出轉</span></button>
+        <button class="blk" data-k="nis"><span class="t">護理系統</span><span class="s">責任護理師、照護警示</span></button>
+      </div>
+    </section>
+
+    <div class="flow">
+      <button class="flowbtn" data-k="link1"><svg aria-hidden="true" width="14" height="26" viewBox="0 0 14 26"><path d="M7 1V23M2 18L7 24L12 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">HL7 / FHIR / DB View / API</span><span class="more">溝通方式</span></button>
+    </div>
+
+    <section class="layer mid" aria-label="第 2 層 中介伺服器">
+      <div class="layer-head"><span class="tag">Layer 2</span><span class="name">中介伺服器</span><span class="owner">院內部署，主要開發處</span></div>
+      <div class="blocks">
+        <button class="blk" data-k="adapter"><span class="t">HIS 介接</span><span class="s">轉成內部格式</span></button>
+        <button class="blk" data-k="db"><span class="t">資料庫</span><span class="s">裝置 ↔ 床 ↔ 病人</span></button>
+        <button class="blk" data-k="render"><span class="t">畫面產生器</span><span class="s">排版成點陣圖</span></button>
+        <button class="blk" data-k="api"><span class="t">裝置 API</span><span class="s">版本查詢、下載</span></button>
+        <button class="blk" data-k="admin"><span class="t">管理後台</span><span class="s">綁定床號、手動覆寫</span></button>
+        <button class="blk" data-k="ota"><span class="t">監控與 OTA</span><span class="s">電量、離線、韌體更新</span></button>
+      </div>
+    </section>
+
+    <div class="flow">
+      <button class="flowbtn" data-k="link2"><svg aria-hidden="true" width="14" height="26" viewBox="0 0 14 26"><path d="M7 1V23M2 18L7 24L12 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">HTTPS 輪詢（或 MQTT）</span><span class="more">溝通方式</span></button>
+    </div>
+
+    <section class="layer net" aria-label="第 3 層 網路層">
+      <div class="layer-head"><span class="tag">Layer 3</span><span class="name">網路層</span><span class="owner">醫院資訊室管理</span></div>
+      <div class="blocks">
+        <button class="blk" data-k="wifi"><span class="t">醫院 Wi‑Fi（IoT 專用網段）</span><span class="s">認證、隔離、訊號覆蓋</span></button>
+      </div>
+    </section>
+
+    <div class="flow">
+      <button class="flowbtn" data-k="link3"><svg aria-hidden="true" width="14" height="26" viewBox="0 0 14 26"><path d="M7 1V23M2 18L7 24L12 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Wi‑Fi 2.4 / 5 GHz</span><span class="more">溝通方式</span></button>
+    </div>
+
+    <section class="layer dev" aria-label="第 4 層 裝置層">
+      <div class="layer-head"><span class="tag">Layer 4</span><span class="name">裝置層</span><span class="owner">每床一台</span><a class="layer-link" href="epaper-bits.html">點陣編碼示範 →</a></div>
+      <div class="blocks">
+        <button class="blk" data-k="device"><span class="t">床 7A‑0301</span><span class="s">RTL8720DN + 電子紙</span></button>
+        <button class="blk" data-k="device"><span class="t">床 7A‑0302</span><span class="s">RTL8720DN + 電子紙</span></button>
+        <button class="blk" data-k="device"><span class="t">床 N</span><span class="s">RTL8720DN + 電子紙</span></button>
+      </div>
+    </section>
+  </div>
+
+  <div class="legend">
+    <span>床號為示意</span>
+    <span>· 方向：醫院系統 → 伺服器 → 網路 → 床邊裝置</span>
+    <span>· 區塊下方的數字是參考資料編號，點擊開啟原文；「建議」表示含無出處的設計建議</span>
+  </div>
+
+  <section class="pipe" aria-labelledby="pipe-title">
+    <h2 id="pipe-title">圖片處理流程</h2>
+    <p>圖片只在中介伺服器產生：資料來源層只提供文字，網路層原樣傳送，8720 不解碼、不排版，只把收到的點陣資料轉送給面板。以下以 10.2 吋 960×640 黑白面板為例，點步驟可開啟對應區塊的說明。流程細節為設計建議。</p>
+    <div class="pipe-grid" id="pipe"></div>
+  </section>
+
+  <section class="calc" aria-labelledby="calc-title">
+    <h2 id="calc-title">資料量與傳輸時間</h2>
+    <p>黑白電子紙每個點只有黑、白兩種狀態，用 1 bit 表示，1 個 byte 存 8 個點，所以資料量是「寬 × 高 × 每點 bit 數 ÷ 8」。彩色 LCD 的 RGB 每點要 3 bytes，資料量是黑白格式的 24 倍。後端先轉成面板格式，8720 收到後直接用 SPI 轉送給面板。</p>
+    <div class="calc-grid">
+      <div class="calc-form">
+        <label for="c-panel">面板</label>
+        <select id="c-panel"></select>
+        <div class="row2">
+          <div><label for="c-w">寬（px）</label><input id="c-w" type="number" min="1" max="4000" inputmode="numeric"></div>
+          <div><label for="c-h">高（px）</label><input id="c-h" type="number" min="1" max="4000" inputmode="numeric"></div>
+        </div>
+        <label for="c-bpp">每點 bit 數</label>
+        <select id="c-bpp">
+          <option value="1">1 bit · 黑白</option>
+          <option value="2">2 bits · 四色</option>
+          <option value="4">4 bits · 16 階灰</option>
+          <option value="24">24 bits · RGB（對照用）</option>
+        </select>
+        <label for="c-spi">SPI 時脈</label>
+        <select id="c-spi">
+          <option value="50">50 MHz · SPI0 上限</option>
+          <option value="25">25 MHz · SPI1 上限</option>
+          <option value="20" selected>20 MHz</option>
+          <option value="10">10 MHz</option>
+          <option value="4">4 MHz · 開發初期</option>
+        </select>
+        <label for="c-wifi">Wi‑Fi 有效下載速度（估計）</label>
+        <select id="c-wifi">
+          <option value="1">1 Mbps · 保守</option>
+          <option value="2" selected>2 Mbps</option>
+          <option value="5">5 Mbps</option>
+        </select>
+      </div>
+      <div class="calc-out" aria-live="polite">
+        <div class="formula" id="c-formula"></div>
+        <div class="kpis">
+          <div class="kpi"><div class="k">資料量</div><div class="v" id="c-bytes"></div><div class="u" id="c-bytes-u"></div></div>
+          <div class="kpi"><div class="k">SPI 寫入面板</div><div class="v" id="c-spit"></div><div class="u">理論值</div></div>
+          <div class="kpi"><div class="k">面板全畫面刷新</div><div class="v" id="c-ref"></div><div class="u" id="c-ref-u"></div></div>
+        </div>
+        <p class="cmp" id="c-cmp"></p>
+        <div class="bar-h">一次更新的時間分配（依比例）</div>
+        <div class="bar" id="c-bar" role="img" aria-label="一次更新的時間分配"></div>
+        <div class="barlegend" id="c-legend"></div>
+      </div>
+    </div>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>面板</th><th>資料量</th><th>50 MHz（SPI0）</th><th>25 MHz（SPI1）</th><th>20 MHz</th><th>10 MHz</th></tr></thead>
+        <tbody id="c-tbody"></tbody>
+      </table>
+    </div>
+    <p class="fine" id="c-fine"></p>
+  </section>
+
+  <section class="summary" aria-labelledby="sum-title">
+    <h2 id="sum-title">需要確認的事項</h2>
+    <p>依詢問對象整理，點項目可開啟對應區塊的說明。</p>
+    <div class="sgrid" id="summary"></div>
+  </section>
+
+  <section class="srcs" aria-labelledby="src-title">
+    <h2 id="src-title">參考資料</h2>
+    <p>這套架構不是出自單一文件，是依醫療資訊整合與電子紙裝置的常見做法整理。下列資料可對照大架構；說明視窗裡標為「設計建議」的細節沒有出處，是依工程經驗提出，可依需求調整。資料查閱於 2026 年 11 月 5 日。</p>
+    <ol id="srclist"></ol>
+  </section>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <div class="dlg-head">
+    <div><div class="tag" id="dlg-tag"></div><h2 id="dlg-title"></h2></div>
+    <button class="close" id="dlg-close" aria-label="關閉說明">關閉</button>
+  </div>
+  <div class="dlg-body" id="dlg-body"></div>
+  <div class="dlg-nav">
+    <button id="dlg-prev">上一個</button>
+    <button id="dlg-next">下一個</button>
+  </div>
+</dialog>
+
+<script>
+const INFO = {
+  link1: {
+    layer: "介面 1 · 醫院系統 → 中介伺服器", color: "--muted", title: "資料來源層 → 中介伺服器",
+    lead: "只有一部分是標準：HL7 v2 和 FHIR 是國際標準，資料庫 View 和廠商 API 由各醫院自訂。實際用哪一種，要問醫院資訊室。",
+    methods: [
+      { name: "HL7 v2（MLLP over TCP）", kind: "std", desc: "醫院有變動時主動推送 ADT 訊息（A01 入院、A02 轉床、A03 出院），每則都要回 ACK。台灣醫院最常見。" },
+      { name: "FHIR（HTTPS + JSON）", kind: "std", desc: "中介伺服器主動查詢 Encounter、Patient、Location 等資源，用 _lastUpdated 只抓有變動的資料。" },
+      { name: "資料庫 View", kind: "hospital", desc: "醫院開一個唯讀資料表，定時讀取。欄位名稱與格式由院方決定。" },
+      { name: "廠商 API", kind: "hospital", desc: "HIS 廠商自訂的介面，規格依廠商文件，只適用該廠商的系統。" }
+    ],
+    input: "HIS、護理系統的資料", output: "交給 HIS 介接模組",
+    note: "就算是標準，各醫院實作也有差異（自訂欄位、空欄位、代碼表不同），每接一家都要調整欄位對應。"
+  },
+  link2: {
+    layer: "介面 2 · 中介伺服器 → 裝置", color: "--muted", title: "中介伺服器 → 裝置",
+    lead: "協定都是標準，內容格式由你自己定義。由裝置主動發請求、伺服器回應，資料經過醫院 Wi‑Fi 網段傳送。",
+    methods: [
+      { name: "HTTPS 輪詢（建議）", kind: "std", desc: "裝置醒來發 GET 詢問版本，沒變回 304，有變再下載畫面。適合電池供電，深睡時不需維持連線。" },
+      { name: "MQTT over TLS", kind: "std", desc: "裝置維持長連線，伺服器有更新時立即推送。適合插電、需要即時更新的情況。" },
+      { name: "資料格式", kind: "own", desc: "版本資訊用 JSON（版本號、喚醒間隔、下載位置）；畫面用 1‑bit 點陣 binary，避免 base64 膨脹。" }
+    ],
+    input: "裝置的請求與狀態回報", output: "304、新畫面或設定值",
+    note: "這一段兩端都由你開發，可以自由設計。建議 API 路徑加版本號（如 /api/v1/），之後改格式時舊韌體仍能運作。"
+  },
+  link3: {
+    layer: "介面 3 · Wi‑Fi → 裝置", color: "--muted", title: "網路層 → 裝置",
+    lead: "全部是標準，但醫院可以選擇啟用哪些設定，要確認 8720 支援醫院採用的那一種。",
+    methods: [
+      { name: "IEEE 802.11a/b/g/n", kind: "std", desc: "8720 支援 2.4 GHz 與 5 GHz，不支援 802.11ac/ax，靠 AP 向下相容。" },
+      { name: "WPA2 / WPA3 加密", kind: "std", desc: "要確認 SSID 不是設成只允許 WPA3。" },
+      { name: "802.1X（EAP）認證", kind: "std", desc: "醫院常用的帳號或憑證認證，韌體需支援 PEAP 或 EAP‑TLS，要先用開發板實測。" },
+      { name: "DHCP、DNS、NTP", kind: "std", desc: "取得 IP、解析伺服器名稱、校正時間；IoT 網段通常只能用院內伺服器。" }
+    ],
+    input: "裝置的連線請求", output: "院內網路位址與時間",
+    note: "協定是標準，但每家醫院的設定組合不同，這是 8720 能不能用的關鍵，要對照 Wi‑Fi 詢問清單確認。"
+  },
+  his: {
+    layer: "Layer 1 · 資料來源層", color: "--src", title: "醫院 HIS",
+    lead: "醫院資訊系統，記錄病人基本資料、床位與入院、轉床、出院等事件，是病床畫面的主要資料來源。",
+    duties: ["管理病人與床位的對應", "產生入院（A01）、轉床（A02）、出院（A03）等事件", "對外提供 HL7、FHIR、資料庫 View 或廠商 API"],
+    input: "醫護人員在系統中的操作", output: "病人、床位、主治醫師、入院日",
+    note: "HIS 不是標準，而是一類系統的統稱，每家醫院不同。要先向資訊室確認它提供哪一種介面。"
+  },
+  nis: {
+    layer: "Layer 1 · 資料來源層", color: "--src", title: "護理系統",
+    lead: "記錄護理排班與照護評估的系統，提供床頭卡上的護理資訊。",
+    duties: ["責任護理師排班", "照護警示：禁食、跌倒高風險、過敏、隔離", "有些醫院整合在 HIS 內，有些是獨立系統"],
+    input: "護理師的評估與排班", output: "責任護理師、照護警示",
+    note: "警示資訊會隨班別變動，更新頻率比 HIS 高，要確認多久同步一次。"
+  },
+  adapter: {
+    layer: "Layer 2 · 中介伺服器", color: "--mid", title: "HIS 介接",
+    lead: "把醫院各種格式的資料轉成系統內部統一的「床位資料」，後面的模組只認內部格式。",
+    duties: ["HL7 v2：監聽 MLLP port，每則訊息回 ACK", "FHIR：用 _lastUpdated 定時查詢 Encounter、Patient", "姓名在這一層就先遮蔽（如「王○明」）", "每 10～30 分鐘做一次全量對帳，補回遺失的事件"],
+    input: "HL7 / FHIR / DB View / 廠商 API", output: "內部格式 BedAssignment",
+    note: "每接一家醫院只要換這一個模組，其他部分不用動。"
+  },
+  db: {
+    layer: "Layer 2 · 中介伺服器", color: "--mid", title: "資料庫",
+    lead: "保存三種對應關係：裝置綁在哪張床、床上目前是哪位病人、每張床的畫面版本號。",
+    duties: ["裝置 ↔ 床號：由管理後台綁定", "床號 ↔ 病人：由 HIS 介接同步", "版本號：內容真的有變才加一", "裝置狀態：電量、訊號、最後上線時間"],
+    input: "介接模組與後台的更新", output: "給畫面產生器與裝置 API 查詢",
+    note: "裝置綁的是「床」，不是病人。病人轉床時只改床與病人的對應，裝置設定不動。"
+  },
+  render: {
+    layer: "Layer 2 · 中介伺服器", color: "--mid", title: "畫面產生器",
+    lead: "把床位資料排版成整張圖，再轉成電子紙用的 1‑bit 點陣資料。",
+    duties: ["伺服器端處理中文字型與排版", "依面板解析度產生對應尺寸", "轉成黑白（或三色）點陣 binary", "計算校驗碼，讓裝置驗證資料完整"],
+    input: "床位資料、面板尺寸", output: "點陣圖 binary（800×480 約 48 KB）",
+    note: "中文字庫放在伺服器，裝置不用存幾 MB 的字型，改版面也不用更新韌體。"
+  },
+  api: {
+    layer: "Layer 2 · 中介伺服器", color: "--mid", title: "裝置 API",
+    lead: "電子紙裝置唯一會連的入口，回答「我的畫面有沒有變」。",
+    duties: ["GET /api/display/{deviceId}?ver=12", "沒變回 304，裝置直接回去睡", "有變回新版本號與畫面下載位置", "同時接收電量、訊號回報，下發喚醒間隔"],
+    input: "裝置 ID、目前版本、狀態", output: "304 或新畫面、設定值",
+    note: "回應要盡量小而快，裝置連線時間越短越省電。"
+  },
+  admin: {
+    layer: "Layer 2 · 中介伺服器", color: "--mid", title: "管理後台",
+    lead: "給護理站與資訊室使用的網頁介面。",
+    duties: ["新裝置上線時綁定到床號", "查看每床目前顯示的內容", "必要時手動覆寫畫面（如 HIS 異常時）", "權限控管與操作紀錄"],
+    input: "管理者操作", output: "更新資料庫中的綁定與覆寫",
+    note: "手動覆寫要有時效或明顯標示，避免 HIS 恢復後仍顯示舊資料。"
+  },
+  ota: {
+    layer: "Layer 2 · 中介伺服器", color: "--mid", title: "監控與 OTA",
+    lead: "追蹤所有裝置的健康狀態，並管理韌體更新。",
+    duties: ["電量過低提醒更換", "超過時間未上線的裝置發出警示", "韌體更新檔放在院內，分批推送", "更新檔做簽章，裝置驗證後才寫入"],
+    input: "裝置回報", output: "警示、韌體更新指令",
+    note: "IoT 網段通常無法連外，OTA 檔案一定要放在院內伺服器。"
+  },
+  wifi: {
+    layer: "Layer 3 · 網路層", color: "--net", title: "醫院 Wi‑Fi（IoT 專用網段）",
+    lead: "裝置與伺服器之間的通道，由醫院資訊室管理，是 8720 能不能用的關鍵。",
+    duties: ["認證方式：PSK、802.1X 或 MAC 驗證", "網段隔離：只能連中介伺服器，不能上外網", "院內 NTP、DNS 提供時間與名稱解析", "床頭位置的訊號覆蓋"],
+    input: "裝置的連線請求", output: "到中介伺服器的連線",
+    note: "訪客網路的網頁登入頁電子紙無法通過；802.1X 與 WPA3 要先用開發板實測。"
+  },
+  device: {
+    layer: "Layer 4 · 裝置層", color: "--dev", title: "病床電子紙（RTL8720DN）",
+    lead: "每張病床一台，邏輯盡量簡單：醒來、問版本、有變才下載刷新、再睡。",
+    duties: ["定時喚醒（加隨機偏移），或按鈕立即更新", "連 Wi‑Fi，向裝置 API 詢問版本並回報狀態", "有新畫面：下載、驗證、刷新電子紙", "關 Wi‑Fi 進入深睡"],
+    input: "裝置 API 的回應", output: "電子紙畫面、狀態回報",
+    note: "任何失敗都保留舊畫面，下次再試；連續失敗時在角落顯示離線圖示。"
+  }
+};
+const ORDER = ["his","nis","link1","adapter","db","render","api","admin","ota","link2","wifi","link3","device"];
+const BADGE = { std: "標準", hospital: "各院自訂", own: "自行定義" };
+const WHO = { "資訊室": "w-it", "護理部": "w-nurse", "院方": "w-hosp", "自行實測": "w-self" };
+const CHECKS = {
+  his: [
+    ["資訊室", "HIS 是自行開發還是廠商系統？哪一家？"],
+    ["資訊室", "能提供哪種介面：HL7、FHIR、資料庫 View 或 API？有沒有規格文件？"],
+    ["資訊室", "有沒有測試環境與去識別化的範例資料？"],
+    ["資訊室", "資料存取需要什麼申請流程？窗口是誰？"]
+  ],
+  nis: [
+    ["護理部", "責任護理師與照護警示記錄在哪個系統？"],
+    ["護理部", "床頭卡要顯示哪些警示？是否有院內統一的圖示？"],
+    ["資訊室", "警示資料多久更新一次？能否從同一個介面取得？"]
+  ],
+  link1: [
+    ["資訊室", "醫院是否已有介面引擎？由它轉送，還是直接接 HIS？"],
+    ["資訊室", "HL7 版本與會送哪些訊息（A01、A02、A03、A08、取消類）？"],
+    ["資訊室", "是對方主動推送，還是我們定時查詢？查詢頻率有無限制？"],
+    ["資訊室", "病房、床位代碼與實際門牌的對照表"]
+  ],
+  adapter: [
+    ["自行實測", "取消類事件（取消轉床、取消入院）的處理是否正確"],
+    ["資訊室", "全量對帳要用什麼方式查詢全部在院病人？"],
+    ["院方", "姓名遮蔽規則（如「王○明」）與可顯示的欄位"]
+  ],
+  db: [
+    ["資訊室", "伺服器與資料庫部署在哪裡？誰負責維護與備份？"],
+    ["資訊室", "病人資料可以保存多久？是否需要加密？"],
+    ["護理部", "裝置與床號的綁定由誰操作？"]
+  ],
+  render: [
+    ["護理部", "畫面要顯示哪些欄位？診斷是否不顯示？"],
+    ["護理部", "字體大小需求：站在多遠要看得清楚？"],
+    ["院方", "面板尺寸與顏色（黑白或三色）"]
+  ],
+  api: [
+    ["資訊室", "是否要求 HTTPS？憑證由誰簽發？"],
+    ["院方", "更新要多即時：轉床後幾分鐘內更新可以接受？"],
+    ["自行實測", "數百台裝置同時連線時的伺服器負載"]
+  ],
+  admin: [
+    ["護理部", "後台由誰使用：護理站還是資訊室？"],
+    ["資訊室", "登入是否要接醫院帳號系統（AD、LDAP）？"],
+    ["院方", "手動覆寫畫面的權限與時效"]
+  ],
+  ota: [
+    ["資訊室", "離線、低電量告警要通知到哪裡？"],
+    ["院方", "換電池與故障處理由誰負責？"],
+    ["資訊室", "韌體更新是否要事先申請或限定時段？"]
+  ],
+  link2: [
+    ["資訊室", "IoT 網段到伺服器要開哪些防火牆 port？"],
+    ["資訊室", "是否要求 TLS 與每台裝置各自的憑證？"],
+    ["院方", "供電方式：電池用 HTTPS 輪詢，插電可考慮 MQTT"]
+  ],
+  wifi: [
+    ["資訊室", "能否提供 IoT 專用 SSID？"],
+    ["資訊室", "IoT 網段能連到哪些伺服器？有無院內 NTP、DNS？"],
+    ["資訊室", "病房床頭位置的訊號狀況？能否安排現場量測？"],
+    ["資訊室", "對 IoT 裝置的資安要求（弱點掃描等）？"],
+    ["資訊室", "新無線設備上線前需要哪些審核或測試？"]
+  ],
+  link3: [
+    ["資訊室", "認證方式是 PSK、802.1X 還是 MAC 驗證？"],
+    ["資訊室", "SSID 是 WPA2 或 WPA3？有無最低傳輸速率限制？"],
+    ["自行實測", "8720 能否連上醫院採用的認證與加密設定"],
+    ["自行實測", "床頭位置的實際連線時間與重試次數"]
+  ],
+  device: [
+    ["院方", "供電方式：電池還是插電？"],
+    ["院方", "面板尺寸與安裝位置（床頭、床尾或牆上）"],
+    ["院方", "清潔消毒方式，影響外殼材質與防水等級"],
+    ["護理部", "是否需要按鈕立即更新畫面？"],
+    ["自行實測", "是否使用已通過 NCC 認證的模組"]
+  ]
+};
+const SOURCES = {
+  jmir: { kind: "學術論文 · JMIR · 2021", title: "Electronic Paper Displays in Hospital Operations: Proposal for Deployment and Implementation", url: "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8374667/",
+    used: "整體架構最接近的參考：院內中央伺服器、以 HL7 或 FHIR 從病歷系統取資料、Wi‑Fi（WPA2 / WPA‑Enterprise）、只在刷新時短暫連線、與主網路隔離。" },
+  mirth: { kind: "技術文章 · IntuitionLabs", title: "Mirth Connect Explained: Architecture & HL7 Standards", url: "https://intuitionlabs.ai/articles/mirth-connect-architecture-integration-engine-guide",
+    used: "醫院「介面引擎」的做法：接收 HIS 的 HL7 訊息、轉換後轉送給其他系統，對應中介伺服器的 HIS 介接。" },
+  minew: { kind: "廠商案例 · Minew", title: "\"Electronic bedside card\" creates smart medical care", url: "https://www.minewtag.com/casesinfo15.html",
+    used: "商用電子床頭卡的另一種架構：雲端平台加藍牙基地台，護理站匯入床位資料，以 MAC 位址把標籤綁定到顯示模板。" },
+  fcc: { kind: "規格文件 · FCC 申請資料", title: "RTL8720DN 模組規格（Seeed）", url: "https://fcc.report/FCC-ID/Z4TSEEED8720DN/4721798.pdf",
+    used: "RTL8720DN 支援 802.11 a/b/g/n、2.4 GHz 與 5 GHz、BLE 5.0，雙核 Cortex‑M4F / M0。" },
+  ameba: { kind: "官方文件 · Realtek Ameba", title: "E-Paper - Display Text（AmebaD / BW16 範例）", url: "https://amebaiotdocuments.readthedocs.io/en/latest/ambd_arduino/AMB23/examples_and_components/Peripheral%20Examples/E-Paper%20-%20Display%20Text.html",
+    used: "8720（BW16）搭配 Waveshare 2.9 吋電子紙的官方範例，證實裝置端可行。" },
+  chimei: { kind: "新聞 · DIGITIMES", title: "奇美醫院攜手龍亭新技導入無線電子紙床頭卡", url: "https://www.digitimes.com.tw/tech/dt/n/shwnws.asp?CnlID=13&id=748364",
+    used: "台灣醫院已導入電子紙床頭卡的案例。", caveat: "只看到標題，內文未能開啟，實際架構未確認。" },
+  via: { kind: "新聞 · TechNews · 2024", title: "威盛電子與馬偕紀念醫院發表智慧病房解決方案", url: "https://technews.tw/2024/12/05/via-launches-smart-ward-solution/",
+    used: "台灣醫院智慧病房的導入案例。", caveat: "只看到標題，內文未開啟，是否含電子紙床頭卡未確認。" },
+  gdem: { kind: "面板規格 · Evelta", title: "GDEM102T91 10.2 吋 960×640 黑白電子紙", url: "https://evelta.com/10-2-inch-960x640-e-ink-screen-e-paper-display-black-white",
+    used: "10.2 吋黑白面板：SPI 介面、控制 IC SSD1677、全畫面刷新約 4 秒、局部刷新約 0.42 秒。" },
+  ws102g: { kind: "面板規格 · Waveshare", title: "10.2inch e-Paper (G) 四色版", url: "https://www.waveshare.com/10.2inch-e-paper-hat-g.htm?sku=30914",
+    used: "10.2 吋四色（紅黃黑白）面板：SPI 介面、全畫面刷新約 27 秒。" },
+  ws103: { kind: "面板規格 · Waveshare Wiki", title: "10.3inch e-Paper HAT", url: "https://www.waveshare.com/wiki/10.3inch_e-Paper_HAT",
+    used: "10.3 吋 1872×1404 面板：需 IT8951 驅動板（SPI / I80 / USB）、2～16 階灰、刷新不到 1 秒、5 V 供電。" }
+};
+const REFS = {
+  his: { refs: [["jmir", "建議顯示資料從病歷系統自動取得，而不是人工輸入"]] },
+  nis: { own: "護理系統獨立或整合在 HIS 內、警示種類，是一般醫院實務，實際情況以院方為準。" },
+  link1: { refs: [["jmir", "建議以 HL7 或 FHIR 等標準介面取得資料"], ["mirth", "介面引擎接收與轉送 HL7 訊息的常見做法"]] },
+  adapter: { refs: [["mirth", "介面引擎負責接收、轉換 HL7 訊息"]], own: "統一內部格式、定時全量對帳、在介接層遮蔽姓名。" },
+  db: { refs: [["minew", "護理站匯入床位資料，以 MAC 位址綁定標籤"]], own: "裝置綁床而非綁病人、每床版本號。" },
+  render: { own: "伺服器端排版中文並轉成 1‑bit 點陣圖、加校驗碼。" },
+  api: { refs: [["jmir", "只在有新資料時更新顯示器，不維持持續連線"]], own: "帶版本號詢問、沒變回 304、由伺服器下發喚醒間隔。" },
+  admin: { refs: [["jmir", "以中央伺服器或管理介面查詢、修改各顯示器"], ["minew", "由護理站綁定標籤與顯示模板"]] },
+  ota: { own: "電量與離線監控、院內存放韌體、簽章驗證後寫入備用區。" },
+  link2: { refs: [["jmir", "顯示器透過加密 Wi‑Fi 連線，只在刷新時短暫連線"]], own: "HTTPS 輪詢或 MQTT 的選擇、JSON 加 binary 的資料格式。" },
+  wifi: { refs: [["jmir", "建議 WPA2，機密資料用 WPA‑Enterprise；顯示器盡量與主網路隔離"]] },
+  link3: { refs: [["jmir", "WPA2 與 WPA‑Enterprise 的建議"], ["fcc", "8720 支援 802.11 a/b/g/n 與 2.4 / 5 GHz"]] },
+  device: { refs: [["ameba", "8720（BW16）驅動電子紙的官方範例"], ["fcc", "8720 模組規格"], ["jmir", "顯示器只在刷新時連線，畫面不耗電保留"]], own: "喚醒加隨機偏移、失敗保留舊畫面、離線圖示。" }
+};
+const SRC_IDS = Object.keys(SOURCES);
+function escA(s){ return esc(s).replace(/"/g, "&quot;"); }
+const dlg = document.getElementById("dlg");
+let cur = 0;
+function esc(s){ return s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function render(k){
+  const d = INFO[k]; cur = ORDER.indexOf(k);
+  const tag = document.getElementById("dlg-tag");
+  tag.textContent = d.layer; tag.style.color = `var(${d.color})`;
+  document.getElementById("dlg-title").textContent = d.title;
+  const methods = d.methods ? `<div><h3>溝通方式</h3><div class="mlist">${d.methods.map(m=>`<div class="m"><div class="mh"><span class="mn">${esc(m.name)}</span><span class="badge ${m.kind}">${BADGE[m.kind]}</span></div><div class="md">${esc(m.desc)}</div></div>`).join("")}</div></div>` : "";
+  const ck = CHECKS[k] ? `<div><h3>需要確認</h3><ul class="checks">${CHECKS[k].map(([w,t])=>`<li><span class="who ${WHO[w]}">${w}</span><span>${esc(t)}</span></li>`).join("")}</ul></div>` : "";
+  const r = REFS[k] || {};
+  const refList = (r.refs || []).map(([id, claim]) => `<li>[${SRC_IDS.indexOf(id)+1}] <a href="${SOURCES[id].url}" target="_blank" rel="noopener">${esc(SOURCES[id].title)}</a><span class="claim">${esc(SOURCES[id].kind)} · ${esc(claim)}</span></li>`).join("");
+  const refs = (refList || r.own) ? `<div><h3>出處</h3>${refList ? `<ul class="refs">${refList}</ul>` : ""}${r.own ? `<div class="own" style="${refList ? "margin-top:8px" : ""}"><b>設計建議（無出處）</b>：${esc(r.own)}</div>` : ""}</div>` : "";
+  const duties = d.duties ? `<div><h3>負責什麼</h3><ul>${d.duties.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+  document.getElementById("dlg-body").innerHTML =
+    `<p class="lead">${esc(d.lead)}</p>
+     ${methods}${duties}${imgHTML(k)}${ck}
+     <div class="io"><div><h3>輸入</h3>${esc(d.input)}</div><div><h3>輸出</h3>${esc(d.output)}</div></div>
+     <div class="note">${esc(d.note)}</div>
+     ${k === "device" ? `<a class="dlg-link" href="epaper-bits.html">開啟點陣編碼示範：看畫面資料怎麼變成 bytes →</a>` : ""}
+     ${refs}`;
+  document.getElementById("dlg-prev").disabled = cur === 0;
+  document.getElementById("dlg-next").disabled = cur === ORDER.length - 1;
+}
+function open(k){
+  render(k);
+  if (typeof dlg.showModal === "function") { if (!dlg.open) dlg.showModal(); }
+  else dlg.setAttribute("open", "");
+}
+document.querySelectorAll(".blk, .flowbtn").forEach(b => b.addEventListener("click", () => open(b.dataset.k)));
+document.getElementById("dlg-close").addEventListener("click", () => dlg.close());
+document.getElementById("dlg-prev").addEventListener("click", () => cur > 0 && render(ORDER[cur-1]));
+document.getElementById("dlg-next").addEventListener("click", () => cur < ORDER.length-1 && render(ORDER[cur+1]));
+dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+(function buildSummary(){
+  const groups = {};
+  Object.keys(WHO).forEach(w => groups[w] = []);
+  ORDER.forEach(k => (CHECKS[k] || []).forEach(([w,t]) => groups[w].push({ k, t })));
+  document.getElementById("summary").innerHTML = Object.keys(groups).filter(w => groups[w].length).map(w =>
+    `<div class="sgroup"><h3><span class="who ${WHO[w]}">${w}</span><span class="n">${groups[w].length} 項</span></h3><ul>${
+      groups[w].map(x => `<li><button class="sitem" data-k="${x.k}"><span class="src">${esc(INFO[x.k].title)}</span><span class="q">${esc(x.t)}</span></button></li>`).join("")
+    }</ul></div>`).join("");
+  document.querySelectorAll(".sitem").forEach(b => b.addEventListener("click", () => open(b.dataset.k)));
+})();
+(function buildSources(){
+  document.getElementById("srclist").innerHTML = Object.values(SOURCES).map((s, i) =>
+    `<li><span class="kind">[${i+1}] ${esc(s.kind)}</span><span class="title"><a href="${s.url}" target="_blank" rel="noopener">${esc(s.title)}</a></span><span class="used">${esc(s.used)}</span>${s.caveat ? `<span class="caveat">${esc(s.caveat)}</span>` : ""}</li>`).join("");
+})();
+const IMG = {
+  his: { items: ["不處理圖片，只提供文字資料：姓名、床號、主治醫師、入院日", "圖片在中介伺服器的畫面產生器才產生"] },
+  nis: { items: ["不處理圖片，只提供警示代碼與護理師姓名", "警示代碼由畫面產生器對應成圖示"] },
+  link1: { items: ["傳的是文字資料（HL7 訊息或 FHIR JSON），沒有圖片"] },
+  adapter: { items: ["整理出畫面要用的欄位，是圖片內容的來源", "姓名在這裡先遮蔽（王○明），完整姓名不會進到圖片", "警示代碼轉成統一的內部代碼，供畫面產生器對應圖示"] },
+  db: { items: ["存每床最新畫面的版本號、資料長度與 CRC32", "可快取已產生的點陣 binary，裝置來要時不用重算", "記錄每台裝置的面板尺寸與安裝方向"] },
+  render: { seq: true, items: ["依面板解析度建立白底畫布（如 960×640）", "用中文字型繪製文字，放上警示圖示與 QR Code", "轉灰階後用閾值二值化成黑白，文字不要用抖色，避免小字邊緣出現雜點", "依安裝方向旋轉（直放或橫放）", "打包：一列一列由左到右，每 8 點 1 byte，最高位元是最左邊的點；1 代表白或黑依控制 IC 規格書", "三色面板另外產生一份紅色層，資料量加倍", "算 CRC32，跟上一版比對，內容真的有變才把版本號加一"] },
+  api: { items: ["以 binary 回傳（application/octet-stream），不轉 base64", "header 帶版本號、資料長度與 CRC32，讓裝置邊收邊驗證", "建議不壓縮：75 KB 很小，解壓縮反而要佔 8720 的記憶體與時間"] },
+  admin: { items: ["後台預覽：把點陣 binary 還原成圖片，讓人確認每床目前的畫面", "手動覆寫後重新產生畫面並把版本號加一"] },
+  ota: { items: ["不處理圖片", "比對裝置回報的顯示版本與伺服器最新版本，找出太久沒更新的裝置"] },
+  link2: { items: ["原樣傳送點陣 binary，只多了 TLS 加密與 HTTP 標頭", "不轉 base64（會多約 33% 資料量），也不傳 PNG、JPG（8720 不解碼）"] },
+  wifi: { items: ["不處理內容，只傳送加密封包"] },
+  link3: { items: ["不處理內容，點陣資料被切成多個 Wi‑Fi 封包送達 8720"] },
+  device: { seq: true, items: ["從 header 取得長度與 CRC，檢查長度是否等於 寬 × 高 ÷ 8", "喚醒面板、送初始化與「寫入顯示 RAM」指令", "每收到 512 bytes 就以 SPI 送進面板 RAM，同時累算 CRC，畫面還不會變", "收完比對 CRC：正確才送刷新指令，錯誤就不刷新，保留舊畫面", "等 BUSY 結束後面板深睡，8720 記下新版本號", "8720 不做：解碼圖檔、字型、縮放、旋轉"] }
+};
+function imgHTML(k){
+  const g = IMG[k]; if (!g) return "";
+  const tag = g.seq ? "ol" : "ul";
+  return `<div><h3>圖片處理</h3><${tag} class="imgsteps">${g.items.map(x => `<li>${esc(x)}</li>`).join("")}</${tag}></div>`;
+}
+(function buildPipe(){
+  const PIPE = [
+    { cls: "src", tag: "Layer 1", name: "資料來源層", steps: [
+      { k: "his", t: "提供文字資料", s: "姓名、床號、主治醫師", sz: "約數百 bytes" },
+      { k: "nis", t: "提供警示代碼", s: "禁食、跌倒、過敏、隔離" } ] },
+    { cls: "mid", tag: "Layer 2", name: "中介伺服器", steps: [
+      { k: "adapter", t: "整理與遮蔽", s: "轉內部格式，姓名改為王○明" },
+      { k: "render", t: "排版繪製", s: "960×640 白底畫布、中文字型、圖示" },
+      { k: "render", t: "二值化", s: "閾值轉黑白，不用抖色" },
+      { k: "render", t: "旋轉與打包", s: "依安裝方向旋轉，每 8 點 1 byte", sz: "76,800 B" },
+      { k: "db", t: "校驗與版本", s: "算 CRC32，內容有變才版本加一" },
+      { k: "api", t: "提供下載", s: "binary，header 帶版本、長度、CRC" } ] },
+    { cls: "net", tag: "Layer 3", name: "網路層", steps: [
+      { k: "link2", t: "HTTPS 傳送", s: "原樣傳 binary，不轉 base64、不壓縮", sz: "76,800 B + TLS" } ] },
+    { cls: "dev", tag: "Layer 4", name: "裝置層", steps: [
+      { k: "device", t: "邊收邊寫入", s: "每 512 bytes 以 SPI 寫進面板 RAM" },
+      { k: "device", t: "驗證", s: "CRC 正確才刷新，錯誤保留舊畫面" },
+      { k: "device", t: "刷新與深睡", s: "10.2 吋黑白約 4 秒" } ] }
+  ];
+  document.getElementById("pipe").innerHTML = PIPE.map(g =>
+    `<div class="pg ${g.cls}"><div class="pg-h"><span class="tag">${g.tag}</span><span>${g.name}</span></div><ol>${
+      g.steps.map(s => `<li><button class="pstep" data-k="${s.k}"><span class="t">${esc(s.t)}</span><span class="s">${esc(s.s)}</span>${s.sz ? `<span class="sz">${esc(s.sz)}</span>` : ""}</button></li>`).join("")
+    }</ol></div>`).join("");
+  document.querySelectorAll(".pstep").forEach(b => b.addEventListener("click", () => open(b.dataset.k)));
+})();
+(function buildCalc(){
+  const PANELS = {
+    p75:  { label: "7.5 吋 800×480 黑白", w: 800, h: 480, bpp: 1, refresh: null },
+    p102: { label: "10.2 吋 960×640 黑白", w: 960, h: 640, bpp: 1, refresh: 4, note: "約 4 秒", src: "gdem" },
+    p102c:{ label: "10.2 吋 960×640 四色", w: 960, h: 640, bpp: 2, refresh: 27, note: "約 27 秒", src: "ws102g" },
+    p103: { label: "10.3 吋 1872×1404 黑白", w: 1872, h: 1404, bpp: 1, refresh: 1, note: "不到 1 秒", src: "ws103" },
+    p103g:{ label: "10.3 吋 1872×1404 16 階灰", w: 1872, h: 1404, bpp: 4, refresh: 1, note: "不到 1 秒", src: "ws103" }
+  };
+  const WIFI_CONNECT = 2;
+  const $ = id => document.getElementById(id);
+  const sel = $("c-panel");
+  sel.innerHTML = Object.entries(PANELS).map(([k, p]) => `<option value="${k}">${p.label}</option>`).join("") + `<option value="custom">自訂</option>`;
+  sel.value = "p102";
+  const num = n => n.toLocaleString("en-US");
+  const size = b => b >= 1048576 ? `約 ${(b / 1048576).toFixed(2)} MB` : `約 ${(b / 1024).toFixed(b < 10240 ? 1 : 0)} KB`;
+  const t = s => s < 1 ? `${(s * 1000).toFixed(s < 0.01 ? 1 : 0)} ms` : `${s.toFixed(s < 10 ? 2 : 1)} 秒`;
+  const cite = id => { const n = SRC_IDS.indexOf(id) + 1, s = SOURCES[id]; return `<a class="cite" href="${s.url}" target="_blank" rel="noopener" title="${escA(s.title)}">${n}</a>`; };
+  function load(k) { const p = PANELS[k]; if (!p) return; $("c-w").value = p.w; $("c-h").value = p.h; $("c-bpp").value = String(p.bpp); }
+  function calc() {
+    const w = Math.max(1, Math.min(4000, parseInt($("c-w").value, 10) || 1));
+    const h = Math.max(1, Math.min(4000, parseInt($("c-h").value, 10) || 1));
+    const bpp = parseInt($("c-bpp").value, 10), spi = parseFloat($("c-spi").value), wifi = parseFloat($("c-wifi").value);
+    const p = PANELS[sel.value];
+    const bytes = Math.ceil(w * h * bpp / 8);
+    const spiS = bytes * 8 / (spi * 1e6), dlS = bytes * 8 / (wifi * 1e6);
+    $("c-formula").innerHTML = `<span>${num(w)} × ${num(h)} × ${bpp} bit ÷ 8 = ${num(bytes)} bytes</span><span>${num(bytes)} × 8 ÷ ${spi} MHz = ${t(spiS)}</span>`;
+    $("c-bytes").textContent = size(bytes);
+    $("c-bytes-u").textContent = `${num(bytes)} bytes`;
+    $("c-spit").textContent = t(spiS);
+    if (p && p.refresh != null) { $("c-ref").innerHTML = `${p.note} ${p.src ? cite(p.src) : ""}`; $("c-ref-u").textContent = "依面板規格"; }
+    else { $("c-ref").textContent = "—"; $("c-ref-u").textContent = "依實際面板規格書"; }
+    $("c-cmp").textContent = bpp < 24 ? `同尺寸若用 RGB（每點 3 bytes）會是 ${num(w * h * 3)} bytes（${size(w * h * 3)}），為此格式的 ${24 / bpp} 倍。` : "電子紙不使用 RGB，此項僅供對照。";
+    const ref = p && p.refresh != null ? p.refresh : 0;
+    const segs = [["seg-wifi", "連上 Wi‑Fi（估計）", WIFI_CONNECT], ["seg-dl", "下載（估計）", dlS], ["seg-spi", "SPI 寫入", spiS]];
+    if (ref) segs.push(["seg-ref", "面板刷新", ref]);
+    const total = segs.reduce((a, s) => a + s[2], 0);
+    $("c-bar").innerHTML = segs.map(([c, l, v]) => `<span class="${c}" style="flex:${v / total}" title="${l} ${t(v)}"></span>`).join("");
+    $("c-legend").innerHTML = segs.map(([c, l, v]) => `<span><i class="${c}"></i>${l} ${t(v)}</span>`).join("") + `<span>合計約 ${t(total)}${ref ? "" : "（未含刷新）"}</span>`;
+  }
+  sel.addEventListener("change", () => { load(sel.value); calc(); });
+  ["c-w", "c-h", "c-bpp"].forEach(id => $(id).addEventListener("input", () => {
+    const p = PANELS[sel.value];
+    if (p && (+$("c-w").value !== p.w || +$("c-h").value !== p.h || +$("c-bpp").value !== p.bpp)) sel.value = "custom";
+    calc();
+  }));
+  ["c-spi", "c-wifi"].forEach(id => $(id).addEventListener("change", calc));
+  load("p102"); calc();
+  const CLK = [50, 25, 20, 10];
+  $("c-tbody").innerHTML = Object.values(PANELS).map(p => {
+    const b = Math.ceil(p.w * p.h * p.bpp / 8);
+    return `<tr><td>${p.label}</td><td>${num(b)} B</td>${CLK.map(c => `<td>${t(b * 8 / (c * 1e6))}</td>`).join("")}</tr>`;
+  }).join("");
+  $("c-fine").innerHTML = `SPI 時間是理論值（資料量 × 8 ÷ 時脈）。實際速度取 8720 與面板控制 IC 兩者較低的上限：8720 的 SPI0 最高 50 MHz、SPI1 最高 25 MHz（來自 RTL8720DN 規格），電子紙控制 IC 通常約 10～20 MHz，要查面板規格書。連上 Wi‑Fi 以 2 秒估算（通常 1～3 秒），下載時間依上方選的有效速度估算，兩者都需用開發板實測。由於邊收 Wi‑Fi 邊寫 SPI，實際上 SPI 時間會被下載時間蓋過。面板規格：${cite("gdem")} ${cite("ws102g")} ${cite("ws103")}`;
+})();
+(function buildCites(){
+  document.querySelectorAll(".blk, .flowbtn").forEach(b => {
+    const r = REFS[b.dataset.k] || {};
+    const links = (r.refs || []).map(([id]) => {
+      const n = SRC_IDS.indexOf(id) + 1, s = SOURCES[id];
+      return `<a class="cite" href="${s.url}" target="_blank" rel="noopener" title="${escA(s.title)}" aria-label="出處 ${n}：${escA(s.title)}">${n}</a>`;
+    }).join("");
+    const own = r.own ? `<span class="cite-own" title="含未附出處的設計建議">建議</span>` : "";
+    if (!links && !own) return;
+    const cell = document.createElement("div");
+    cell.className = b.classList.contains("flowbtn") ? "cell flowcell" : "cell";
+    b.parentNode.insertBefore(cell, b);
+    cell.appendChild(b);
+    const c = document.createElement("div");
+    c.className = "cites";
+    c.innerHTML = `<span class="cites-lbl">出處</span>${links}${own}`;
+    cell.appendChild(c);
+  });
+})();
+</script>
+</body>
+</html>

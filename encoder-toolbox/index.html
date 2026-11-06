@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>工程師工具站</title>
 <meta http-equiv="Cache-Control" content="no-cache">
-<meta name="description" content="硬體、韌體與軟體開發用的學習與計算工具：編碼器、ADC、Nonius 絕對角度、硬體量測計算，以及 ER 圖設計草稿板。">
+<meta name="description" content="硬體、韌體與軟體開發用的學習與計算工具：編碼器、ADC、Nonius 絕對角度、硬體量測計算、ER 圖設計草稿板，以及病床電子紙系統架構等學習筆記。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=DM+Sans:wght@400;500&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
@@ -159,7 +159,7 @@ nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:25;background:var(--bg)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-<script src="catalog.js?v=20261102-1600b"></script>
+<script src="catalog.js?v=20261106-1100"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -204,7 +204,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     wave:'<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-2"/>',
     ruler:'<path d="M3 17L17 3l4 4L7 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
     box:'<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/>',
-    diagram:'<rect x="3" y="3" width="8" height="6" rx="1"/><rect x="13" y="15" width="8" height="6" rx="1"/><path d="M7 9v5h10v1"/>'
+    diagram:'<rect x="3" y="3" width="8" height="6" rx="1"/><rect x="13" y="15" width="8" height="6" rx="1"/><path d="M7 9v5h10v1"/>',
+    book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7h8M8 11h6"/>'
   };
   const ico=n=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||ICONS.box}</svg>`;
   const chev='<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
