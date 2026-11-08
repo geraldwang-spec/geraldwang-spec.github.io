@@ -237,115 +237,106 @@ async function pool(items, n, fn){
   return out;
 }
 
-/* ---------- 地點 → 附近公車站 ---------- */
+/* ---------- 本機資料庫（IndexedDB）---------- */
+const CACHE_DAYS = 7;
+const idb = (()=>{
+  let dbp=null;
+  function open(){
+    if(!dbp) dbp=new Promise((res,rej)=>{
+      try{ const r=indexedDB.open("busfinder",1);
+        r.onupgradeneeded=()=>r.result.createObjectStore("kv");
+        r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+      }catch(e){ rej(e); }
+    });
+    return dbp;
+  }
+  async function op(mode, fn){
+    const db=await open();
+    return new Promise((res,rej)=>{ const tx=db.transaction("kv",mode); const r=fn(tx.objectStore("kv")); tx.oncomplete=()=>res(r&&r.result); tx.onerror=()=>rej(tx.error); });
+  }
+  return {
+    get:k=>op("readonly",st=>st.get(k)).catch(()=>undefined),
+    set:(k,v)=>op("readwrite",st=>st.put(v,k)).catch(()=>{}),
+    clear:()=>op("readwrite",st=>st.clear()).catch(()=>{})
+  };
+})();
+
+/* ---------- 一次下載整個範圍的路線＋站牌 ---------- */
+const memData = {};
+async function loadSource(src, force){
+  if(!force && memData[src]) return memData[src];
+  if(!force){
+    const c = await idb.get("sor|"+src);
+    if(c && c.t > Date.now()-CACHE_DAYS*864e5){ memData[src]=c; return c; }
+  }
+  setStatus("下載"+SRC_LABEL[src]+"全部路線與站牌（第一次比較久，之後 "+CACHE_DAYS+" 天內不用再下載）…");
+  const raw = await tdx("StopOfRoute/"+src, {"$top":"50000"});
+  // 只留需要的欄位，省空間
+  const routes = raw.map(r=>({
+    u:r.RouteUID, n:r.RouteName?.Zh_tw, su:r.SubRouteUID, sn:r.SubRouteName?.Zh_tw, d:r.Direction,
+    o:(r.Operators||[]).map(o=>o.OperatorName?.Zh_tw).filter(Boolean).join("、"),
+    s:[...(r.Stops||[])].sort((x,y)=>x.StopSequence-y.StopSequence)
+        .map(x=>[x.StopUID, x.StopName?.Zh_tw||"", x.StopPosition?.PositionLat||0, x.StopPosition?.PositionLon||0, x.StopSequence])
+  }));
+  const data = {t:Date.now(), routes};
+  memData[src]=data; await idb.set("sor|"+src, data);
+  return data;
+}
+
+/* ---------- 地點 → 附近公車站（全部在本機計算）---------- */
 function dist(lat1,lon1,lat2,lon2){
   const R=6371000, r=x=>x*Math.PI/180;
   const dLat=r(lat2-lat1), dLon=r(lon2-lon1);
   const h=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(h));
 }
-function posOf(o){ const p=o?.StopPosition||o?.StationPosition; return p&&p.PositionLat?{lat:p.PositionLat,lon:p.PositionLon}:null; }
 function isFatal(e){ return e && (e.status===401 || e.status===429); }
 
-// 依站名找出地點座標（跨所有查詢範圍），相近的合併成一個點
-async function findAnchors(name, srcs){
-  const res = await pool(srcs, 3, src=>tdx("Stop/"+src, {"$filter":`contains(StopName/Zh_tw, ${q(name)})`, "$select":"StopUID,StopName,StopPosition"}));
-  const pts=[];
-  res.forEach(r=>{ if(r&&r.error){ if(isFatal(r.error)) throw r.error; return; }
-    (r||[]).forEach(st=>{ const p=posOf(st); if(p) pts.push({...p, name:st.StopName?.Zh_tw}); }); });
-  // 完全同名的優先
-  const exact = pts.filter(p=>p.name===name);
-  const base = exact.length ? exact : pts;
+function allStops(datasets){
+  const m=new Map();
+  for(const ds of datasets) for(const r of ds.routes) for(const st of r.s)
+    if(st[2] && !m.has(st[0])) m.set(st[0], st);
+  return [...m.values()];
+}
+function findAnchors(name, stops){
+  const hit = stops.filter(s=>s[1].includes(name));
+  const exact = hit.filter(s=>s[1]===name);
   const clusters=[];
-  for(const p of base){
-    const c=clusters.find(c=>dist(c.lat,c.lon,p.lat,p.lon)<250);
-    if(c){ c.n++; } else clusters.push({...p,n:1});
+  for(const s of (exact.length?exact:hit)){
+    if(!clusters.some(c=>dist(c.lat,c.lon,s[2],s[3])<250)) clusters.push({lat:s[2],lon:s[3],name:s[1]});
   }
   return clusters;
 }
-
-// 某個範圍內、各地點附近的站牌：StopUID → {dist, name}，以及經過的 RouteUID
-async function nearbyStops(src, anchors, radius){
-  const stops = {}; const routes = new Set(); let viaStation = true;
-  for(const a of anchors){
-    let list;
-    try{
-      list = await tdx("Station/"+src, {"$spatialFilter":`nearby(${a.lat}, ${a.lon}, ${radius})`});
-    }catch(e){
-      if(isFatal(e)) throw e;
-      viaStation = false;
-      list = await tdx("Stop/"+src, {"$spatialFilter":`nearby(${a.lat}, ${a.lon}, ${radius})`, "$select":"StopUID,StopName,StopPosition"});
+function nearMap(anchors, stops, radius){
+  const m={};
+  for(const s of stops){
+    let best=Infinity;
+    for(const a of anchors){
+      if(Math.abs(a.lat-s[2])>0.012 || Math.abs(a.lon-s[3])>0.012) continue;   // 先粗略排除，加快速度
+      const d=dist(a.lat,a.lon,s[2],s[3]); if(d<best) best=d;
     }
-    for(const st of list){
-      const p=posOf(st); const d=p?dist(a.lat,a.lon,p.lat,p.lon):radius;
-      const subs = st.Stops ? st.Stops : [{StopUID:st.StopUID, StopName:st.StopName}];
-      for(const x of subs){
-        if(!x.StopUID) continue;
-        const nm = x.StopName?.Zh_tw || st.StationName?.Zh_tw || st.StopName?.Zh_tw;
-        if(!stops[x.StopUID] || d<stops[x.StopUID].dist) stops[x.StopUID]={dist:d,name:nm};
-        if(x.RouteUID) routes.add(x.RouteUID);
-      }
-    }
+    if(best<=radius) m[s[0]]=best;
   }
-  return {stops, routes, viaStation};
+  return m;
 }
-
-async function stopOfRouteByRoutes(src, uids){
-  const out=[];
-  for(let i=0;i<uids.length;i+=15){
-    const f = uids.slice(i,i+15).map(u=>`RouteUID eq ${q(u)}`).join(" or ");
-    out.push(...await tdx("StopOfRoute/"+src, {"$filter":f}));
-  }
-  return out;
-}
-async function stopOfRouteByStops(src, stopUIDs){
-  const out=[];
-  for(let i=0;i<stopUIDs.length;i+=12){
-    const f = "Stops/any(s: "+stopUIDs.slice(i,i+12).map(u=>`s/StopUID eq ${q(u)}`).join(" or ")+")";
-    out.push(...await tdx("StopOfRoute/"+src, {"$filter":f}));
-  }
-  return out;
-}
-
-async function searchSource(src, fromAnchors, toAnchors, radius){
-  const A = await nearbyStops(src, fromAnchors, radius);
-  if(!Object.keys(A.stops).length) return [];
-  const B = await nearbyStops(src, toAnchors, radius);
-  if(!Object.keys(B.stops).length) return [];
-  let sors;
-  if(A.viaStation && B.viaStation){
-    const common=[...A.routes].filter(u=>B.routes.has(u));
-    if(!common.length) return [];
-    sors = await stopOfRouteByRoutes(src, common);
-  }else{
-    sors = await stopOfRouteByStops(src, Object.keys(A.stops));
-  }
-  return findMatches(src, sors, A.stops, B.stops);
-}
-
-function findMatches(src, sors, aStops, bStops){
+function findMatches(src, routes, A, B){
   const res=[];
-  for(const r of sors){
-    const stops=[...(r.Stops||[])].sort((x,y)=>x.StopSequence-y.StopSequence);
-    let best=null;
-    stops.forEach((s,i)=>{
-      const a=aStops[s.StopUID]; if(!a) return;
-      for(let j=i+1;j<stops.length;j++){
-        const b=bStops[stops[j].StopUID]; if(!b) continue;
-        const score=a.dist+b.dist+(j-i)*60;   // 走路公尺 + 每站約等於 60 公尺
+  for(const r of routes){
+    const st=r.s; let best=null;
+    for(let i=0;i<st.length;i++){
+      const a=A[st[i][0]]; if(a===undefined) continue;
+      for(let j=i+1;j<st.length;j++){
+        const b=B[st[j][0]]; if(b===undefined) continue;
+        const score=a+b+(j-i)*60;
         if(!best||score<best.score) best={i,j,a,b,score};
         break;
       }
-    });
+    }
     if(!best) continue;
-    res.push({
-      src, routeUID:r.RouteUID, routeName:r.RouteName?.Zh_tw, subRouteUID:r.SubRouteUID,
-      subRouteName:r.SubRouteName?.Zh_tw, direction:r.Direction,
-      first:stops[0]?.StopName?.Zh_tw, last:stops[stops.length-1]?.StopName?.Zh_tw,
-      board:stops[best.i], alight:stops[best.j], nStops:best.j-best.i,
-      walkA:Math.round(best.a.dist), walkB:Math.round(best.b.dist), score:best.score,
-      operator:(r.Operators||[]).map(o=>o.OperatorName?.Zh_tw).filter(Boolean).join("、")
-    });
+    const S=x=>({StopUID:x[0], StopName:{Zh_tw:x[1]}, StopSequence:x[4]});
+    res.push({ src, routeUID:r.u, routeName:r.n, subRouteUID:r.su, subRouteName:r.sn, direction:r.d,
+      first:st[0]?.[1], last:st[st.length-1]?.[1], board:S(st[best.i]), alight:S(st[best.j]),
+      nStops:best.j-best.i, walkA:Math.round(best.a), walkB:Math.round(best.b), score:best.score, operator:r.o });
   }
   return res;
 }
@@ -354,13 +345,19 @@ function findMatches(src, sors, aStops, bStops){
 const schedCache = {};
 async function getSchedule(src, routeName){
   const key=src+"|"+routeName;
-  if(!schedCache[key]) schedCache[key] = tdx("Schedule/"+src+"/"+encodeURIComponent(routeName)).catch(e=>({error:e}));
+  if(!schedCache[key]) schedCache[key] = (async()=>{
+    const c = await idb.get("sch|"+key);
+    if(c && c.t > Date.now()-CACHE_DAYS*864e5) return c.v;
+    const v = await tdx("Schedule/"+src+"/"+encodeURIComponent(routeName));
+    await idb.set("sch|"+key, {t:Date.now(), v});
+    return v;
+  })().catch(e=>{ delete schedCache[key]; return {error:e}; });
   return schedCache[key];
 }
 function hm2min(t){ const [h,m]=t.split(":").map(Number); return h*60+m; }
 
 function scheduleFor(sched, m, dateStr){
-  if(!Array.isArray(sched)) return {error:sched?.error};
+  if(!Array.isArray(sched)) return {error:sched?.error||{}};
   const d = new Date(dateStr+"T00:00:00");
   const wd = WEEK[d.getDay()];
   const list = sched.filter(s=>s.RouteUID===m.routeUID && s.Direction===m.direction &&
@@ -431,20 +428,23 @@ async function runSearch(){
   const out=$("results"); out.innerHTML=""; $("go").disabled=true;
   try{
     const radius=+$("radius").value;
-    setStatus("尋找「"+from+"」和「"+to+"」的位置…");
-    const [fromAnchors, toAnchors] = await Promise.all([findAnchors(from,srcs), findAnchors(to,srcs)]);
+    const datasets=[], errs=[];
+    for(const src of srcs){
+      try{ datasets.push({src, ...(await loadSource(src))}); }
+      catch(e){ if(isFatal(e)) throw e; errs.push(SRC_LABEL[src]+"："+e.message); }
+    }
+    if(!datasets.length) throw new Error("資料下載失敗："+errs.join("；"));
+    setStatus("在本機比對路線…");
+    const stops = allStops(datasets);
+    const fromAnchors=findAnchors(from,stops), toAnchors=findAnchors(to,stops);
     if(!fromAnchors.length) throw new Error("找不到名稱含「"+from+"」的公車站，請換個寫法");
     if(!toAnchors.length) throw new Error("找不到名稱含「"+to+"」的公車站，請換個寫法");
-    if(fromAnchors.length>6 || toAnchors.length>6){
-      throw new Error("「"+(fromAnchors.length>6?from:to)+"」對到太多地方（"+Math.max(fromAnchors.length,toAnchors.length)+" 處），請打完整一點的站名");
+    if(fromAnchors.length>8 || toAnchors.length>8){
+      throw new Error("「"+(fromAnchors.length>8?from:to)+"」對到太多地方（"+Math.max(fromAnchors.length,toAnchors.length)+" 處），請打完整一點的站名");
     }
-    setStatus("找附近 "+radius+" 公尺內的公車站和路線…");
-    const perSrc = await pool(srcs, 2, src=>searchSource(src, fromAnchors, toAnchors, radius));
-    let matches=[], errs=[];
-    perSrc.forEach((r,i)=>{
-      if(r && r.error){ if(isFatal(r.error)) throw r.error; errs.push(SRC_LABEL[srcs[i]]+"："+r.error.message); return; }
-      matches.push(...(r||[]));
-    });
+    const A=nearMap(fromAnchors,stops,radius), B=nearMap(toAnchors,stops,radius);
+    let matches=[];
+    for(const ds of datasets) matches.push(...findMatches(ds.src, ds.routes, A, B));
     const best={};
     for(const m of matches){
       const k=m.src+"|"+m.routeUID+"|"+m.direction+"|"+(m.subRouteUID||"");
@@ -471,19 +471,24 @@ async function runSearch(){
         </div>
         <div class="rmeta">往 ${esc(m.last)}（${esc(m.first)} → ${esc(m.last)}）${m.operator?"｜"+esc(m.operator):""}</div>
         <div class="path">上車：<b>${esc(m.board.StopName.Zh_tw)}</b>${walk(m.walkA)}　→　下車：<b>${esc(m.alight.StopName.Zh_tw)}</b>${walk(m.walkB)}</div>
-        <div class="sched">班表載入中…</div>
+        <div class="sched"><button class="ghost" type="button">看這天的班表</button></div>
         ${isToday?`<div class="eta"><button class="ghost" type="button">查即時到站</button> <span class="eta-out"></span></div>`:""}`;
       if(isToday) div.querySelector(".eta button").onclick = e=>loadETA(e.target, m);
       out.appendChild(div);
       return {m, el:div.querySelector(".sched")};
     });
 
-    setStatus("載入班表…");
     const nowMin = isToday ? new Date().getHours()*60+new Date().getMinutes() : -1;
-    await pool(cards, 3, async ({m,el})=>{
-      const s = scheduleFor(await getSchedule(m.src, m.routeName), m, date);
-      el.innerHTML = renderSched(s, m, nowMin);
+    cards.forEach(({m,el})=>{
+      el.querySelector("button").onclick = async ()=>{
+        el.innerHTML = `<span class="status">班表載入中…</span>`;
+        const s = scheduleFor(await getSchedule(m.src, m.routeName), m, date);
+        el.innerHTML = renderSched(s, m, nowMin);
+      };
     });
+    const ages = datasets.map(d=>SRC_LABEL[d.src]+" "+new Date(d.t).toLocaleDateString("zh-TW"));
+    $("results").insertAdjacentHTML("beforeend", `<p class="hint">路線資料下載日期：${esc(ages.join("、"))}　<button class="ghost" type="button" id="refresh">重新下載資料</button></p>`);
+    $("refresh").onclick = async ()=>{ await idb.clear(); for(const k in memData) delete memData[k]; for(const k in schedCache) delete schedCache[k]; runSearch(); };
     if(tokenFailed) errs.unshift("金鑰沒用上，改用免金鑰模式查詢："+tokenFailed.why);
     setStatus(errs.length ? errs.join("；") : "完成", !!errs.length);
   }catch(err){
@@ -497,7 +502,7 @@ async function runSearch(){
 
 function walk(d){ return d<60 ? `<span class="tag" style="margin-left:4px">就在這站</span>` : `<span class="tag gray" style="margin-left:4px">走 ${d} 公尺</span>`; }
 function renderSched(s, m, nowMin){
-  if(s.error) return `<span class="status">這條路線沒有提供班表資料</span>`;
+  if(s.error) return `<span class="status">${s.error.status===429?"TDX 暫時太忙，稍後再按一次":"這條路線沒有提供班表資料"}</span>`;
   const chip = t => `<span class="t${nowMin>=0 && hm2min(t)<nowMin?" past":""}">${esc(t)}</span>`;
   let h="";
   if(s.atBoard.length){
