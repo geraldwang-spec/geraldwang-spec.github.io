@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>公車直達查詢｜兩站之間有哪些公車</title>
+<style>
+  :root{
+    --bg:#f6f5f1; --card:#fff; --ink:#1d2a2f; --muted:#6b767a; --line:#e3e0d8;
+    --accent:#0f7b6c; --accent-soft:#e3f2ef; --warn:#b25e09; --warn-soft:#fdf1e2; --err:#b3261e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  .wrap{max-width:880px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:.92rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .row{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end}
+  label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:4px}
+  input[type=text],input[type=date],input[type=password]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:1rem;background:#fff;color:var(--ink)}
+  input:focus{outline:2px solid var(--accent);border-color:transparent}
+  .swap{border:1px solid var(--line);background:#fff;border-radius:10px;height:44px;width:44px;cursor:pointer;font-size:1.1rem}
+  .row2{display:grid;grid-template-columns:220px 1fr;gap:14px;margin-top:14px;align-items:start}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.88rem;cursor:pointer;user-select:none;background:#fff}
+  .chip input{margin:0;accent-color:var(--accent)}
+  .actions{display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap}
+  button.primary{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:11px 22px;font-size:1rem;cursor:pointer;font-weight:600}
+  button.primary:disabled{opacity:.5;cursor:wait}
+  button.ghost{background:none;border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer;color:var(--ink);font-size:.88rem}
+  .status{font-size:.88rem;color:var(--muted)}
+  .status.err{color:var(--err)}
+  details summary{cursor:pointer;color:var(--muted);font-size:.9rem}
+  .keygrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .hint{font-size:.82rem;color:var(--muted);margin-top:8px}
+  .hint a{color:var(--accent)}
+  .summary{font-weight:600;margin:6px 0 12px}
+  .route{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:#fff}
+  .rhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .rname{font-size:1.35rem;font-weight:700;color:var(--accent)}
+  .tag{font-size:.75rem;border-radius:6px;padding:2px 8px;background:var(--accent-soft);color:var(--accent)}
+  .tag.gray{background:#eef0f0;color:var(--muted)}
+  .rmeta{color:var(--muted);font-size:.88rem;margin-top:4px}
+  .path{margin-top:8px;font-size:.92rem}
+  .path b{font-weight:600}
+  .sched{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:.9rem}
+  .times{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .t{font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:6px;padding:2px 7px;font-size:.85rem}
+  .t.past{opacity:.4}
+  .note{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:.85rem;margin-top:8px}
+  .eta{margin-top:8px;font-size:.9rem}
+  .eta .big{font-weight:700;color:var(--accent)}
+  .empty{color:var(--muted);text-align:center;padding:24px}
+  @media (max-width:640px){
+    .row{grid-template-columns:1fr}
+    .swap{width:100%}
+    .row2{grid-template-columns:1fr}
+    .keygrid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p style="margin:0 0 8px;font-size:.88rem"><a href="./#life" style="color:var(--accent)">← 工具站</a></p>
+  <h1>🚌 公車直達查詢</h1>
+  <p class="sub">輸入上車和下車的地點（站名），會把兩邊步行範圍內的公車站都找出來，列出能直達的路線（方向正確）和指定日期的班表。資料來源：交通部 TDX 運輸資料流通服務平臺。</p>
+
+  <form class="card" id="form">
+    <div class="row">
+      <div>
+        <label for="from">上車地點（站名，可只打部分）</label>
+        <input type="text" id="from" placeholder="例：德音國小" required>
+      </div>
+      <button type="button" class="swap" id="swap" title="起訖互換">⇄</button>
+      <div>
+        <label for="to">下車地點（站名）</label>
+        <input type="text" id="to" placeholder="例：輔大醫院" required>
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label for="date">搭乘日期</label>
+        <input type="date" id="date" required>
+        <label for="radius" style="margin-top:10px">願意走路的距離</label>
+        <select id="radius" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:1rem;background:#fff">
+          <option value="150">只要原站（150 公尺）</option>
+          <option value="300">300 公尺（約 4 分鐘）</option>
+          <option value="500" selected>500 公尺（約 7 分鐘）</option>
+          <option value="800">800 公尺（約 10 分鐘）</option>
+        </select>
+      </div>
+      <div>
+        <label>查詢範圍</label>
+        <div class="chips">
+          <label class="chip"><input type="checkbox" name="src" value="City/NewTaipei" checked>新北市公車</label>
+          <label class="chip"><input type="checkbox" name="src" value="City/Taipei" checked>臺北市公車</label>
+          <label class="chip"><input type="checkbox" name="src" value="InterCity" checked>公路客運</label>
+          <label class="chip"><input type="checkbox" name="src" value="City/Taoyuan">桃園市</label>
+          <label class="chip"><input type="checkbox" name="src" value="City/Keelung">基隆市</label>
+        </div>
+      </div>
+    </div>
+
+    <details style="margin-top:16px" id="keybox">
+      <summary>TDX API 金鑰（建議填寫，未填每日查詢次數很少）</summary>
+      <div class="keygrid">
+        <div><label for="cid">Client Id</label><input type="text" id="cid" autocomplete="off"></div>
+        <div><label for="csec">Client Secret</label><input type="password" id="csec" autocomplete="off"></div>
+      </div>
+      <p class="hint">免費申請：到 <a href="https://tdx.transportdata.tw/" target="_blank" rel="noopener">tdx.transportdata.tw</a> 註冊會員 → 會員中心 → API 金鑰。金鑰只存在這台電腦的瀏覽器裡。</p>
+    </details>
+
+    <div class="actions">
+      <button class="primary" id="go" type="button">查詢</button>
+      <span class="status" id="status"></span>
+    </div>
+  </form>
+
+  <div id="results"></div>
+</div>
+
+<script>
+const API = "https://tdx.transportdata.tw/api/basic/v2/Bus";
+const TOKEN_URL = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
+const SRC_LABEL = {"City/NewTaipei":"新北市","City/Taipei":"臺北市","InterCity":"公路客運","City/Taoyuan":"桃園市","City/Keelung":"基隆市"};
+const WEEK = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const WEEK_ZH = ["日","一","二","三","四","五","六"];
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+
+/* ---------- 初始化 ---------- */
+(function init(){
+  const p = new URLSearchParams(location.search);
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  $("date").value = p.get("date") || ymd(tomorrow);
+  $("from").value = p.get("from") || store.get("bf_from") || "德音國小";
+  $("to").value = p.get("to") || store.get("bf_to") || "輔大醫院";
+  $("cid").value = store.get("bf_cid") || "";
+  $("csec").value = store.get("bf_csec") || "";
+  if(!$("cid").value) $("keybox").open = true;
+  $("swap").onclick = () => { const a=$("from").value; $("from").value=$("to").value; $("to").value=a; };
+})();
+
+function ymd(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function q(s){ return "'"+String(s).replace(/'/g,"''")+"'"; }
+function setStatus(msg, err){ const s=$("status"); s.textContent=msg||""; s.className="status"+(err?" err":""); }
+
+/* ---------- TDX 連線 ---------- */
+let tokenCache = null, tokenFailed = null;
+function cleanKey(v){ return v.replace(/[\s​-‍﻿　]/g,""); }   // 去掉空白、全形空白、隱藏字元
+async function getToken(){
+  const id=cleanKey($("cid").value), sec=cleanKey($("csec").value);
+  if(!id || !sec) return null;
+  if(tokenCache && tokenCache.id===id && tokenCache.exp>Date.now()) return tokenCache.token;
+  if(tokenFailed && tokenFailed.id===id) return null;          // 這次查詢已失敗過，改用免金鑰模式
+  const body = "grant_type=client_credentials&client_id="+encodeURIComponent(id)+"&client_secret="+encodeURIComponent(sec);
+  let res, text="";
+  try{
+    res = await fetch(TOKEN_URL,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
+    text = await res.text();
+  }catch(e){
+    tokenFailed={id, why:"連不到 TDX 登入伺服器（"+e.message+"）。這通常是開啟網頁的環境擋掉了，不是金鑰錯誤。"};
+    return null;
+  }
+  let j={}; try{ j=JSON.parse(text); }catch(e){}
+  if(!res.ok || !j.access_token){
+    const code=j.error||"", desc=j.error_description||text.slice(0,120);
+    let why;
+    if(code==="invalid_client" || code==="unauthorized_client") why="TDX 回覆：Client Id 或 Secret 不正確（"+code+"）。請到 TDX 會員中心重新複製，注意 Id 和 Secret 不要貼反。";
+    else if(code==="unsupported_grant_type" || code==="invalid_request") why="TDX 收到的登入資料不完整（"+code+"）。金鑰本身可能沒錯，是開啟網頁的環境改掉了送出的內容。";
+    else why="TDX 登入失敗：HTTP "+res.status+" "+code+" "+desc;
+    tokenFailed={id, why};
+    return null;
+  }
+  tokenFailed=null;
+  tokenCache = {id, token:j.access_token, exp:Date.now()+(j.expires_in-120)*1000};
+  return tokenCache.token;
+}
+async function tdx(path, params={}){
+  const url = new URL(API+"/"+path);
+  for(const [k,v] of Object.entries({...params,"$format":"JSON"})) url.searchParams.set(k,v);
+  const token = await getToken();
+  const headers = token ? {Authorization:"Bearer "+token} : {};
+  for(let attempt=0; attempt<3; attempt++){
+    const res = await fetch(url.toString(), {method:"GET", headers});
+    if(res.ok) return res.json();
+    if(res.status===429){ await new Promise(r=>setTimeout(r,1200*(attempt+1))); continue; }
+    const err = new Error("TDX "+res.status); err.status=res.status; throw err;
+  }
+  const e = new Error(token ? "TDX 查詢太頻繁（429），請稍後再試" : (tokenFailed ? "免金鑰額度已用完，而金鑰登入失敗：" + tokenFailed.why : "未登入的免費額度已用完（429），請填入 TDX 金鑰"));
+  e.status=429; throw e;
+}
+async function pool(items, n, fn){
+  const out = new Array(items.length); let i=0;
+  await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{
+    while(i<items.length){ const k=i++; try{ out[k]=await fn(items[k]); }catch(e){ out[k]={error:e}; } }
+  }));
+  return out;
+}
+
+/* ---------- 地點 → 附近公車站 ---------- */
+function dist(lat1,lon1,lat2,lon2){
+  const R=6371000, r=x=>x*Math.PI/180;
+  const dLat=r(lat2-lat1), dLon=r(lon2-lon1);
+  const h=Math.sin(dLat/2)**2+Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function posOf(o){ const p=o?.StopPosition||o?.StationPosition; return p&&p.PositionLat?{lat:p.PositionLat,lon:p.PositionLon}:null; }
+function isFatal(e){ return e && (e.status===401 || e.status===429); }
+
+// 依站名找出地點座標（跨所有查詢範圍），相近的合併成一個點
+async function findAnchors(name, srcs){
+  const res = await pool(srcs, 3, src=>tdx("Stop/"+src, {"$filter":`contains(StopName/Zh_tw, ${q(name)})`, "$select":"StopUID,StopName,StopPosition"}));
+  const pts=[];
+  res.forEach(r=>{ if(r&&r.error){ if(isFatal(r.error)) throw r.error; return; }
+    (r||[]).forEach(st=>{ const p=posOf(st); if(p) pts.push({...p, name:st.StopName?.Zh_tw}); }); });
+  // 完全同名的優先
+  const exact = pts.filter(p=>p.name===name);
+  const base = exact.length ? exact : pts;
+  const clusters=[];
+  for(const p of base){
+    const c=clusters.find(c=>dist(c.lat,c.lon,p.lat,p.lon)<250);
+    if(c){ c.n++; } else clusters.push({...p,n:1});
+  }
+  return clusters;
+}
+
+// 某個範圍內、各地點附近的站牌：StopUID → {dist, name}，以及經過的 RouteUID
+async function nearbyStops(src, anchors, radius){
+  const stops = {}; const routes = new Set(); let viaStation = true;
+  for(const a of anchors){
+    let list;
+    try{
+      list = await tdx("Station/"+src, {"$spatialFilter":`nearby(${a.lat}, ${a.lon}, ${radius})`});
+    }catch(e){
+      if(isFatal(e)) throw e;
+      viaStation = false;
+      list = await tdx("Stop/"+src, {"$spatialFilter":`nearby(${a.lat}, ${a.lon}, ${radius})`, "$select":"StopUID,StopName,StopPosition"});
+    }
+    for(const st of list){
+      const p=posOf(st); const d=p?dist(a.lat,a.lon,p.lat,p.lon):radius;
+      const subs = st.Stops ? st.Stops : [{StopUID:st.StopUID, StopName:st.StopName}];
+      for(const x of subs){
+        if(!x.StopUID) continue;
+        const nm = x.StopName?.Zh_tw || st.StationName?.Zh_tw || st.StopName?.Zh_tw;
+        if(!stops[x.StopUID] || d<stops[x.StopUID].dist) stops[x.StopUID]={dist:d,name:nm};
+        if(x.RouteUID) routes.add(x.RouteUID);
+      }
+    }
+  }
+  return {stops, routes, viaStation};
+}
+
+async function stopOfRouteByRoutes(src, uids){
+  const out=[];
+  for(let i=0;i<uids.length;i+=15){
+    const f = uids.slice(i,i+15).map(u=>`RouteUID eq ${q(u)}`).join(" or ");
+    out.push(...await tdx("StopOfRoute/"+src, {"$filter":f}));
+  }
+  return out;
+}
+async function stopOfRouteByStops(src, stopUIDs){
+  const out=[];
+  for(let i=0;i<stopUIDs.length;i+=12){
+    const f = "Stops/any(s: "+stopUIDs.slice(i,i+12).map(u=>`s/StopUID eq ${q(u)}`).join(" or ")+")";
+    out.push(...await tdx("StopOfRoute/"+src, {"$filter":f}));
+  }
+  return out;
+}
+
+async function searchSource(src, fromAnchors, toAnchors, radius){
+  const A = await nearbyStops(src, fromAnchors, radius);
+  if(!Object.keys(A.stops).length) return [];
+  const B = await nearbyStops(src, toAnchors, radius);
+  if(!Object.keys(B.stops).length) return [];
+  let sors;
+  if(A.viaStation && B.viaStation){
+    const common=[...A.routes].filter(u=>B.routes.has(u));
+    if(!common.length) return [];
+    sors = await stopOfRouteByRoutes(src, common);
+  }else{
+    sors = await stopOfRouteByStops(src, Object.keys(A.stops));
+  }
+  return findMatches(src, sors, A.stops, B.stops);
+}
+
+function findMatches(src, sors, aStops, bStops){
+  const res=[];
+  for(const r of sors){
+    const stops=[...(r.Stops||[])].sort((x,y)=>x.StopSequence-y.StopSequence);
+    let best=null;
+    stops.forEach((s,i)=>{
+      const a=aStops[s.StopUID]; if(!a) return;
+      for(let j=i+1;j<stops.length;j++){
+        const b=bStops[stops[j].StopUID]; if(!b) continue;
+        const score=a.dist+b.dist+(j-i)*60;   // 走路公尺 + 每站約等於 60 公尺
+        if(!best||score<best.score) best={i,j,a,b,score};
+        break;
+      }
+    });
+    if(!best) continue;
+    res.push({
+      src, routeUID:r.RouteUID, routeName:r.RouteName?.Zh_tw, subRouteUID:r.SubRouteUID,
+      subRouteName:r.SubRouteName?.Zh_tw, direction:r.Direction,
+      first:stops[0]?.StopName?.Zh_tw, last:stops[stops.length-1]?.StopName?.Zh_tw,
+      board:stops[best.i], alight:stops[best.j], nStops:best.j-best.i,
+      walkA:Math.round(best.a.dist), walkB:Math.round(best.b.dist), score:best.score,
+      operator:(r.Operators||[]).map(o=>o.OperatorName?.Zh_tw).filter(Boolean).join("、")
+    });
+  }
+  return res;
+}
+
+/* ---------- 班表 ---------- */
+const schedCache = {};
+async function getSchedule(src, routeName){
+  const key=src+"|"+routeName;
+  if(!schedCache[key]) schedCache[key] = tdx("Schedule/"+src+"/"+encodeURIComponent(routeName)).catch(e=>({error:e}));
+  return schedCache[key];
+}
+function hm2min(t){ const [h,m]=t.split(":").map(Number); return h*60+m; }
+
+function scheduleFor(sched, m, dateStr){
+  if(!Array.isArray(sched)) return {error:sched?.error};
+  const d = new Date(dateStr+"T00:00:00");
+  const wd = WEEK[d.getDay()];
+  const list = sched.filter(s=>s.RouteUID===m.routeUID && s.Direction===m.direction &&
+                               (!s.SubRouteUID || !m.subRouteUID || s.SubRouteUID===m.subRouteUID));
+  const pick = list.length ? list : sched.filter(s=>s.RouteUID===m.routeUID && s.Direction===m.direction);
+  const times=new Set(), atBoard=new Set(), freqs=[]; let special=false;
+  for(const s of pick){
+    for(const t of (s.Timetables||[])){
+      if(t.SpecialDays && t.SpecialDays.length) special=true;
+      if(!t.ServiceDay || t.ServiceDay[wd]!==1) continue;
+      const st=t.StopTimes||[];
+      const b = st.find(x=>x.StopUID===m.board.StopUID || x.StopSequence===m.board.StopSequence);
+      if(b) atBoard.add(b.ArrivalTime||b.DepartureTime);
+      else if(st[0]) times.add(st[0].DepartureTime||st[0].ArrivalTime);
+    }
+    for(const f of (s.Frequencys||[])){
+      if(!f.ServiceDay || f.ServiceDay[wd]!==1) continue;
+      freqs.push(f);
+    }
+  }
+  const sortT = a=>[...a].filter(Boolean).sort((x,y)=>hm2min(x)-hm2min(y));
+  freqs.sort((a,b)=>hm2min(a.StartTime)-hm2min(b.StartTime));
+  return {wdZh:WEEK_ZH[d.getDay()], atBoard:sortT(atBoard), departs:sortT(times), freqs, special, none:!pick.length};
+}
+
+/* ---------- 即時到站 ---------- */
+async function loadETA(btn, m){
+  const box = btn.parentElement.querySelector(".eta-out");
+  btn.disabled=true; box.textContent="查詢中…";
+  try{
+    const data = await tdx("EstimatedTimeOfArrival/"+m.src+"/"+encodeURIComponent(m.routeName),
+      {"$filter":`StopUID eq ${q(m.board.StopUID)} and Direction eq ${m.direction}`});
+    if(!data.length){ box.textContent="目前沒有即時資料"; return; }
+    const e=data[0];
+    const msg = {1:"尚未發車",2:"交管不停靠",3:"末班車已過",4:"今日未營運"}[e.StopStatus];
+    if(e.EstimateTime!=null){
+      const min=Math.round(e.EstimateTime/60);
+      box.innerHTML = min<=1 ? `<span class="big">即將進站</span>` : `約 <span class="big">${min}</span> 分鐘到 ${esc(m.board.StopName.Zh_tw)}`;
+    }else box.textContent = msg || "暫無預估時間";
+  }catch(err){ box.textContent="查詢失敗："+err.message; }
+  finally{ btn.disabled=false; }
+}
+
+/* ---------- 主流程 ---------- */
+$("form").addEventListener("submit", ev=>{ ev.preventDefault(); });
+$("go").addEventListener("click", ev=>{ ev.preventDefault(); runSearch(); });
+["from","to"].forEach(id=>$(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); runSearch(); } }));
+
+function showError(msg){
+  setStatus(msg,true);
+  $("results").innerHTML = `<div class="card" style="border-color:#e8b4b0;color:#b3261e">⚠️ ${esc(msg)}</div>`;
+}
+window.addEventListener("error", e=>showError("程式錯誤："+e.message));
+window.addEventListener("unhandledrejection", e=>showError("程式錯誤："+(e.reason?.message||e.reason)));
+
+async function runSearch(){
+  if($("go").disabled) return;
+  tokenFailed=null;
+  setStatus("查詢中…");
+  const from=$("from").value.trim(), to=$("to").value.trim(), date=$("date").value;
+  const srcs=[...document.querySelectorAll("input[name=src]:checked")].map(x=>x.value);
+  if(!from||!to||!date){ showError("請填好上車站、下車站和日期"); return; }
+  if(!srcs.length){ setStatus("請至少勾選一個查詢範圍",true); return; }
+  store.set("bf_from",from); store.set("bf_to",to);
+  store.set("bf_cid",$("cid").value.trim()); store.set("bf_csec",$("csec").value.trim());
+  try{ history.replaceState(null,"","?"+new URLSearchParams({from,to,date})); }catch(e){}
+
+  const out=$("results"); out.innerHTML=""; $("go").disabled=true;
+  try{
+    const radius=+$("radius").value;
+    setStatus("尋找「"+from+"」和「"+to+"」的位置…");
+    const [fromAnchors, toAnchors] = await Promise.all([findAnchors(from,srcs), findAnchors(to,srcs)]);
+    if(!fromAnchors.length) throw new Error("找不到名稱含「"+from+"」的公車站，請換個寫法");
+    if(!toAnchors.length) throw new Error("找不到名稱含「"+to+"」的公車站，請換個寫法");
+    if(fromAnchors.length>6 || toAnchors.length>6){
+      throw new Error("「"+(fromAnchors.length>6?from:to)+"」對到太多地方（"+Math.max(fromAnchors.length,toAnchors.length)+" 處），請打完整一點的站名");
+    }
+    setStatus("找附近 "+radius+" 公尺內的公車站和路線…");
+    const perSrc = await pool(srcs, 2, src=>searchSource(src, fromAnchors, toAnchors, radius));
+    let matches=[], errs=[];
+    perSrc.forEach((r,i)=>{
+      if(r && r.error){ if(isFatal(r.error)) throw r.error; errs.push(SRC_LABEL[srcs[i]]+"："+r.error.message); return; }
+      matches.push(...(r||[]));
+    });
+    const best={};
+    for(const m of matches){
+      const k=m.src+"|"+m.routeUID+"|"+m.direction+"|"+(m.subRouteUID||"");
+      if(!best[k] || m.score<best[k].score) best[k]=m;
+    }
+    matches = Object.values(best).sort((a,b)=>a.score-b.score || (a.routeName||"").localeCompare(b.routeName||"","zh-Hant",{numeric:true}));
+
+    if(!matches.length){
+      out.innerHTML = `<div class="card empty">在步行 ${radius} 公尺範圍內，找不到從「${esc(from)}」直達「${esc(to)}」的路線。<br>試試把步行距離調大，或勾選更多查詢範圍（可能需要轉乘）。${errs.length?"<br><small>"+esc(errs.join("；"))+"</small>":""}</div>`;
+      setStatus(""); return;
+    }
+
+    const isToday = date===ymd(new Date());
+    const dd=new Date(date+"T00:00:00");
+    out.innerHTML = `<div class="summary">${dd.getMonth()+1}/${dd.getDate()}（週${WEEK_ZH[dd.getDay()]}）從「${esc(from)}」到「${esc(to)}」共 ${matches.length} 條直達路線（步行 ${radius} 公尺內）</div>`;
+    const cards = matches.map(m=>{
+      const div=document.createElement("div"); div.className="route";
+      div.innerHTML = `
+        <div class="rhead">
+          <span class="rname">${esc(m.routeName)}</span>
+          ${m.subRouteName && m.subRouteName!==m.routeName ? `<span class="tag gray">${esc(m.subRouteName)}</span>`:""}
+          <span class="tag">${esc(SRC_LABEL[m.src])}</span>
+          <span class="tag gray">${m.nStops} 站</span>
+        </div>
+        <div class="rmeta">往 ${esc(m.last)}（${esc(m.first)} → ${esc(m.last)}）${m.operator?"｜"+esc(m.operator):""}</div>
+        <div class="path">上車：<b>${esc(m.board.StopName.Zh_tw)}</b>${walk(m.walkA)}　→　下車：<b>${esc(m.alight.StopName.Zh_tw)}</b>${walk(m.walkB)}</div>
+        <div class="sched">班表載入中…</div>
+        ${isToday?`<div class="eta"><button class="ghost" type="button">查即時到站</button> <span class="eta-out"></span></div>`:""}`;
+      if(isToday) div.querySelector(".eta button").onclick = e=>loadETA(e.target, m);
+      out.appendChild(div);
+      return {m, el:div.querySelector(".sched")};
+    });
+
+    setStatus("載入班表…");
+    const nowMin = isToday ? new Date().getHours()*60+new Date().getMinutes() : -1;
+    await pool(cards, 3, async ({m,el})=>{
+      const s = scheduleFor(await getSchedule(m.src, m.routeName), m, date);
+      el.innerHTML = renderSched(s, m, nowMin);
+    });
+    if(tokenFailed) errs.unshift("金鑰沒用上，改用免金鑰模式查詢："+tokenFailed.why);
+    setStatus(errs.length ? errs.join("；") : "完成", !!errs.length);
+  }catch(err){
+    console.error(err);
+    const msg = err instanceof TypeError && /fetch|network|Failed/i.test(err.message)
+      ? "無法連線到 TDX。若你是在對話的預覽視窗裡打開，請改成下載檔案後用 Chrome / Edge 直接開啟；否則請確認網路。"
+      : err.message;
+    showError(msg);
+  }finally{ $("go").disabled=false; }
+}
+
+function walk(d){ return d<60 ? `<span class="tag" style="margin-left:4px">就在這站</span>` : `<span class="tag gray" style="margin-left:4px">走 ${d} 公尺</span>`; }
+function renderSched(s, m, nowMin){
+  if(s.error) return `<span class="status">這條路線沒有提供班表資料</span>`;
+  const chip = t => `<span class="t${nowMin>=0 && hm2min(t)<nowMin?" past":""}">${esc(t)}</span>`;
+  let h="";
+  if(s.atBoard.length){
+    h += `<div>預計經過 <b>${esc(m.board.StopName.Zh_tw)}</b> 的時間（週${s.wdZh}，共 ${s.atBoard.length} 班）：</div><div class="times">${s.atBoard.map(chip).join("")}</div>`;
+  }
+  if(s.departs.length){
+    h += `<div style="margin-top:6px">起點「${esc(m.first)}」發車時間（週${s.wdZh}，共 ${s.departs.length} 班）：</div><div class="times">${s.departs.map(chip).join("")}</div>`;
+  }
+  if(s.freqs.length){
+    h += `<div style="margin-top:6px">發車間隔（週${s.wdZh}）：</div><div class="times">` +
+      s.freqs.map(f=>`<span class="t">${esc(f.StartTime)}–${esc(f.EndTime)}　每 ${f.MinHeadwayMins===f.MaxHeadwayMins?f.MinHeadwayMins:f.MinHeadwayMins+"–"+f.MaxHeadwayMins} 分</span>`).join("") + `</div>`;
+  }
+  if(!h) h = s.none ? `<span class="status">這條路線沒有提供班表資料</span>` : `<div class="note">週${s.wdZh}沒有排班，這天可能不行駛</div>`;
+  if(s.departs.length && !s.atBoard.length) h += `<div class="hint">到「${esc(m.board.StopName.Zh_tw)}」的時間要再加上從起點行駛的時間。</div>`;
+  if(s.special) h += `<div class="note">此路線另有特殊日（例如國定假日）班表，假日請以業者公告為準。</div>`;
+  return h;
+}
+</script>
+</body>
+</html>
