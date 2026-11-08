@@ -341,6 +341,85 @@ function findMatches(src, routes, A, B){
   return res;
 }
 
+/* ---------- 附近站牌清單 ---------- */
+function nearbyList(near, datasets){
+  // 每個站牌經過哪些路線（含方向）
+  const routesAt = {};
+  for(const ds of datasets) for(const r of ds.routes){
+    const last=r.s[r.s.length-1]?.[1]||"";
+    for(const st of r.s){ if(near[st[0]]===undefined) continue;
+      (routesAt[st[0]] ||= new Map()).set(r.n+"|"+last, {name:r.n, to:last, src:ds.src}); }
+  }
+  const info = {};
+  for(const ds of datasets) for(const r of ds.routes) for(const st of r.s) if(near[st[0]]!==undefined && !info[st[0]]) info[st[0]]=st;
+  // 同名而且很近的站牌（對向兩側）合在一起
+  const groups=[];
+  for(const uid of Object.keys(near)){
+    const st=info[uid]; if(!st) continue;
+    let g=groups.find(g=>g.name===st[1] && dist(g.lat,g.lon,st[2],st[3])<120);
+    if(!g){ g={name:st[1], lat:st[2], lon:st[3], d:near[uid], routes:new Map()}; groups.push(g); }
+    g.d=Math.min(g.d, near[uid]);
+    for(const [k,v] of (routesAt[uid]||[])) g.routes.set(k,v);
+  }
+  groups.sort((a,b)=>a.d-b.d);
+  return groups;
+}
+function renderNearby(title, groups, radius){
+  if(!groups.length) return `<div class="card"><b>${esc(title)}</b><p class="hint">${radius} 公尺內沒有公車站</p></div>`;
+  const rows = groups.map(g=>{
+    const rs=[...g.routes.values()].sort((a,b)=>(a.name||"").localeCompare(b.name||"","zh-Hant",{numeric:true}));
+    const byName={}; rs.forEach(r=>(byName[r.name] ||= []).push(r.to));
+    const chips=Object.entries(byName).map(([n,tos])=>`<span class="t" title="往 ${esc(tos.join("、"))}">${esc(n)}</span>`).join("");
+    return `<div style="padding:8px 0;border-top:1px solid var(--line)">
+      <div><b>${esc(g.name)}</b>${walk(Math.round(g.d))}<span class="hint" style="margin-left:6px">${Object.keys(byName).length} 條路線</span></div>
+      <div class="times">${chips}</div></div>`;
+  }).join("");
+  return `<details class="card" open><summary style="font-weight:600;color:var(--ink)">${esc(title)}（${groups.length} 個站牌）</summary>${rows}
+    <p class="hint">滑鼠停在路線號碼上可看行駛方向（往哪裡）。</p></details>`;
+}
+
+/* ---------- 轉乘一次 ---------- */
+function findTransfers(datasets, A, B, directKeys){
+  const r1={}, r2={};   // stopUID → 最佳的第一段／第二段
+  for(const ds of datasets) for(const r of ds.routes){
+    const st=r.s;
+    for(let i=0;i<st.length;i++){ const a=A[st[i][0]]; if(a===undefined) continue;
+      for(let k=i+1;k<st.length;k++){ const sc=a+(k-i)*60, u=st[k][0];
+        if(!r1[u]||sc<r1[u].sc) r1[u]={sc,r,i,k,src:ds.src}; }
+      break;
+    }
+    for(let j=st.length-1;j>=0;j--){ const b=B[st[j][0]]; if(b===undefined) continue;
+      for(let k=j-1;k>=0;k--){ const sc=b+(j-k)*60, u=st[k][0];
+        if(!r2[u]||sc<r2[u].sc) r2[u]={sc,r,k,j,src:ds.src}; }
+      break;
+    }
+  }
+  // 第二段的上車站放進格子，快速找轉乘點附近 150 公尺內的站
+  const cell=(lat,lon)=>Math.floor(lat/0.0015)+","+Math.floor(lon/0.0015);
+  const grid={};
+  for(const u in r2){ const e=r2[u], st=e.r.s[e.k]; (grid[cell(st[2],st[3])] ||= []).push(e); }
+  const best={};
+  for(const u in r1){
+    const e1=r1[u], t=e1.r.s[e1.k]; if(!t[2]) continue;
+    const ci=Math.floor(t[2]/0.0015), cj=Math.floor(t[3]/0.0015);
+    for(let di=-1;di<=1;di++) for(let dj=-1;dj<=1;dj++) for(const e2 of (grid[(ci+di)+","+(cj+dj)]||[])){
+      if(e2.r.n===e1.r.n) continue;
+      const t2=e2.r.s[e2.k]; const w=dist(t[2],t[3],t2[2],t2[3]); if(w>150) continue;
+      const sc=e1.sc+e2.sc+w+600;          // 轉乘多算 600（約等於多等一班車）
+      const key=e1.r.n+"→"+e2.r.n;
+      if(directKeys.has(e1.r.n)||directKeys.has(e2.r.n)) continue;   // 已經有直達的路線就不列
+      if(!best[key]||sc<best[key].sc) best[key]={sc,e1,e2,w:Math.round(w)};
+    }
+  }
+  return Object.values(best).sort((a,b)=>a.sc-b.sc).slice(0,8);
+}
+function legOf(e, which){
+  const st=e.r.s, from=which===1?e.i:e.k, to=which===1?e.k:e.j;
+  const S=x=>({StopUID:x[0], StopName:{Zh_tw:x[1]}, StopSequence:x[4]});
+  return {src:e.src, routeUID:e.r.u, routeName:e.r.n, subRouteUID:e.r.su, direction:e.r.d,
+    first:st[0]?.[1], last:st[st.length-1]?.[1], board:S(st[from]), alight:S(st[to]), nStops:to-from};
+}
+
 /* ---------- 班表 ---------- */
 const schedCache = {};
 async function getSchedule(src, routeName){
@@ -452,14 +531,11 @@ async function runSearch(){
     }
     matches = Object.values(best).sort((a,b)=>a.score-b.score || (a.routeName||"").localeCompare(b.routeName||"","zh-Hant",{numeric:true}));
 
-    if(!matches.length){
-      out.innerHTML = `<div class="card empty">在步行 ${radius} 公尺範圍內，找不到從「${esc(from)}」直達「${esc(to)}」的路線。<br>試試把步行距離調大，或勾選更多查詢範圍（可能需要轉乘）。${errs.length?"<br><small>"+esc(errs.join("；"))+"</small>":""}</div>`;
-      setStatus(""); return;
-    }
-
     const isToday = date===ymd(new Date());
     const dd=new Date(date+"T00:00:00");
-    out.innerHTML = `<div class="summary">${dd.getMonth()+1}/${dd.getDate()}（週${WEEK_ZH[dd.getDay()]}）從「${esc(from)}」到「${esc(to)}」共 ${matches.length} 條直達路線（步行 ${radius} 公尺內）</div>`;
+    out.innerHTML = matches.length
+      ? `<div class="summary">${dd.getMonth()+1}/${dd.getDate()}（週${WEEK_ZH[dd.getDay()]}）從「${esc(from)}」到「${esc(to)}」共 ${matches.length} 條直達路線（步行 ${radius} 公尺內）</div>`
+      : `<div class="card empty">步行 ${radius} 公尺內沒有直達「${esc(to)}」的公車，請看下面的轉乘方式，或把步行距離調大。</div>`;
     const cards = matches.map(m=>{
       const div=document.createElement("div"); div.className="route";
       div.innerHTML = `
@@ -479,6 +555,33 @@ async function runSearch(){
     });
 
     const nowMin = isToday ? new Date().getHours()*60+new Date().getMinutes() : -1;
+
+    // 轉乘一次
+    const transfers = findTransfers(datasets, A, B, new Set(matches.map(m=>m.routeName)));
+    if(transfers.length){
+      out.insertAdjacentHTML("beforeend", `<div class="summary" style="margin-top:20px">轉乘一次（${transfers.length} 種）</div>`);
+      for(const t of transfers){
+        const L1=legOf(t.e1,1), L2=legOf(t.e2,2);
+        const div=document.createElement("div"); div.className="route";
+        const leg=(L,n)=>`<div class="path"><span class="rname" style="font-size:1.1rem">${esc(L.routeName)}</span>
+          <span class="tag">${esc(SRC_LABEL[L.src])}</span> <span class="hint">往 ${esc(L.last)}・${L.nStops} 站</span><br>
+          ${esc(L.board.StopName.Zh_tw)} → ${esc(L.alight.StopName.Zh_tw)}
+          <div class="sched" data-leg="${n}"><button class="ghost" type="button">看 ${esc(L.routeName)} 這天的班表</button></div></div>`;
+        div.innerHTML = `<div class="rmeta">上車：${esc(L1.board.StopName.Zh_tw)}${walk(Math.round(A[L1.board.StopUID]))}　下車：${esc(L2.alight.StopName.Zh_tw)}${walk(Math.round(B[L2.alight.StopUID]))}</div>`
+          + leg(L1,1)
+          + `<div class="note" style="background:var(--accent-soft);color:var(--accent)">在「${esc(L1.alight.StopName.Zh_tw)}」下車${t.w<30?"，同站":"，走 "+t.w+" 公尺到「"+esc(L2.board.StopName.Zh_tw)+"」"}轉乘</div>`
+          + leg(L2,2);
+        out.appendChild(div);
+        [L1,L2].forEach((L,i)=>cards.push({m:L, el:div.querySelector(`.sched[data-leg="${i+1}"]`)}));
+      }
+    }
+
+    // 附近站牌
+    out.insertAdjacentHTML("beforeend",
+      `<div class="summary" style="margin-top:20px">附近的公車站</div>` +
+      renderNearby("「"+from+"」附近 "+radius+" 公尺", nearbyList(A, datasets), radius) +
+      renderNearby("「"+to+"」附近 "+radius+" 公尺", nearbyList(B, datasets), radius));
+
     cards.forEach(({m,el})=>{
       el.querySelector("button").onclick = async ()=>{
         el.innerHTML = `<span class="status">班表載入中…</span>`;
