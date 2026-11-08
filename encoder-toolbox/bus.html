@@ -151,48 +151,82 @@ function q(s){ return "'"+String(s).replace(/'/g,"''")+"'"; }
 function setStatus(msg, err){ const s=$("status"); s.textContent=msg||""; s.className="status"+(err?" err":""); }
 
 /* ---------- TDX 連線 ---------- */
-let tokenCache = null, tokenFailed = null;
+let tokenCache = null, tokenFailed = null, tokenPromise = null;
 function cleanKey(v){ return v.replace(/[\s​-‍﻿　]/g,""); }   // 去掉空白、全形空白、隱藏字元
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+// 登入取得的 token 有效約一天：存起來重複用，避免一直打登入伺服器
+try{ const t=JSON.parse(localStorage.getItem("bf_token")||"null"); if(t && t.exp>Date.now()) tokenCache=t; }catch(e){}
+
 async function getToken(){
   const id=cleanKey($("cid").value), sec=cleanKey($("csec").value);
   if(!id || !sec) return null;
   if(tokenCache && tokenCache.id===id && tokenCache.exp>Date.now()) return tokenCache.token;
-  if(tokenFailed && tokenFailed.id===id) return null;          // 這次查詢已失敗過，改用免金鑰模式
-  const body = "grant_type=client_credentials&client_id="+encodeURIComponent(id)+"&client_secret="+encodeURIComponent(sec);
-  let res, text="";
-  try{
-    res = await fetch(TOKEN_URL,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
-    text = await res.text();
-  }catch(e){
-    tokenFailed={id, why:"連不到 TDX 登入伺服器（"+e.message+"）。這通常是開啟網頁的環境擋掉了，不是金鑰錯誤。"};
-    return null;
-  }
-  let j={}; try{ j=JSON.parse(text); }catch(e){}
-  if(!res.ok || !j.access_token){
-    const code=j.error||"", desc=j.error_description||text.slice(0,120);
-    let why;
-    if(code==="invalid_client" || code==="unauthorized_client") why="TDX 回覆：Client Id 或 Secret 不正確（"+code+"）。請到 TDX 會員中心重新複製，注意 Id 和 Secret 不要貼反。";
-    else if(code==="unsupported_grant_type" || code==="invalid_request") why="TDX 收到的登入資料不完整（"+code+"）。金鑰本身可能沒錯，是開啟網頁的環境改掉了送出的內容。";
-    else why="TDX 登入失敗：HTTP "+res.status+" "+code+" "+desc;
-    tokenFailed={id, why};
-    return null;
-  }
-  tokenFailed=null;
-  tokenCache = {id, token:j.access_token, exp:Date.now()+(j.expires_in-120)*1000};
-  return tokenCache.token;
+  if(tokenFailed && tokenFailed.id===id) return null;
+  if(!tokenPromise) tokenPromise = login(id, sec).finally(()=>{ tokenPromise=null; });  // 同時只登入一次
+  return tokenPromise;
 }
+async function login(id, sec){
+  const body = "grant_type=client_credentials&client_id="+encodeURIComponent(id)+"&client_secret="+encodeURIComponent(sec);
+  for(let attempt=0; attempt<4; attempt++){
+    let res, text="";
+    try{
+      res = await fetch(TOKEN_URL,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
+      text = await res.text();
+    }catch(e){
+      tokenFailed={id, why:"連不到 TDX 登入伺服器（"+e.message+"）。這通常是開啟網頁的環境擋掉了，不是金鑰錯誤。"};
+      return null;
+    }
+    if(res.status===429){ setStatus("TDX 登入伺服器忙碌，等待後重試…"); await sleep(retryWait(res, attempt)); continue; }
+    let j={}; try{ j=JSON.parse(text); }catch(e){}
+    if(!res.ok || !j.access_token){
+      const code=j.error||"", desc=j.error_description||text.slice(0,120);
+      let why;
+      if(code==="invalid_client" || code==="unauthorized_client") why="TDX 回覆：Client Id 或 Secret 不正確（"+code+"）。請用 TDX 會員中心的「複製」按鈕重新複製，注意 Id 和 Secret 不要貼反。";
+      else if(code==="unsupported_grant_type" || code==="invalid_request") why="TDX 收到的登入資料不完整（"+code+"）。";
+      else why="TDX 登入失敗：HTTP "+res.status+" "+code+" "+desc;
+      tokenFailed={id, why};
+      return null;
+    }
+    tokenFailed=null;
+    tokenCache = {id, token:j.access_token, exp:Date.now()+(j.expires_in-300)*1000};
+    try{ localStorage.setItem("bf_token", JSON.stringify(tokenCache)); }catch(e){}
+    return tokenCache.token;
+  }
+  tokenFailed={id, why:"TDX 登入伺服器一直回覆太頻繁（429），請過幾分鐘再試。"};
+  return null;
+}
+function retryWait(res, attempt){
+  const ra = parseFloat(res.headers?.get?.("Retry-After"));
+  return (isFinite(ra) && ra>0 ? ra*1000 : 0) + [1500,3000,6000,10000,15000][attempt];
+}
+
+// 控制送出速度：請求排隊，每次間隔至少 GAP 毫秒（約每秒 4 次）
+const GAP = 260; let nextSlot = 0;
+async function throttle(){
+  const now=Date.now(); const at=Math.max(now, nextSlot); nextSlot = at+GAP;
+  if(at>now) await sleep(at-now);
+}
+
 async function tdx(path, params={}){
   const url = new URL(API+"/"+path);
   for(const [k,v] of Object.entries({...params,"$format":"JSON"})) url.searchParams.set(k,v);
-  const token = await getToken();
-  const headers = token ? {Authorization:"Bearer "+token} : {};
-  for(let attempt=0; attempt<3; attempt++){
+  for(let attempt=0; attempt<5; attempt++){
+    const token = await getToken();
+    const headers = token ? {Authorization:"Bearer "+token} : {};
+    await throttle();
     const res = await fetch(url.toString(), {method:"GET", headers});
     if(res.ok) return res.json();
-    if(res.status===429){ await new Promise(r=>setTimeout(r,1200*(attempt+1))); continue; }
+    if(res.status===401 && token){ tokenCache=null; try{ localStorage.removeItem("bf_token"); }catch(e){} continue; }  // token 過期就重新登入
+    if(res.status===429){
+      setStatus("TDX 說太頻繁，放慢速度後重試…");
+      nextSlot = Math.max(nextSlot, Date.now()+retryWait(res, attempt));
+      continue;
+    }
     const err = new Error("TDX "+res.status); err.status=res.status; throw err;
   }
-  const e = new Error(token ? "TDX 查詢太頻繁（429），請稍後再試" : (tokenFailed ? "免金鑰額度已用完，而金鑰登入失敗：" + tokenFailed.why : "未登入的免費額度已用完（429），請填入 TDX 金鑰"));
+  const token = tokenCache && tokenCache.token;
+  const e = new Error(token ? "TDX 一直回覆太頻繁（429），可能今天的額度用完了，請過幾分鐘再試" : (tokenFailed ? "免金鑰額度已用完，而金鑰登入失敗：" + tokenFailed.why : "未登入的免費額度已用完（429），請填入 TDX 金鑰"));
   e.status=429; throw e;
 }
 async function pool(items, n, fn){
