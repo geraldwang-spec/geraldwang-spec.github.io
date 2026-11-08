@@ -87,6 +87,7 @@
           <option value="300">300 公尺（約 4 分鐘）</option>
           <option value="500" selected>500 公尺（約 7 分鐘）</option>
           <option value="800">800 公尺（約 10 分鐘）</option>
+          <option value="1200">1200 公尺（約 15 分鐘）</option>
         </select>
       </div>
       <div>
@@ -305,7 +306,10 @@ function findAnchors(name, stops){
   for(const s of (exact.length?exact:hit)){
     if(!clusters.some(c=>dist(c.lat,c.lon,s[2],s[3])<250)) clusters.push({lat:s[2],lon:s[3],name:s[1]});
   }
-  return clusters;
+  // 距離改用「每一個同名站牌」來算（對向兩側都算 0 公尺），clusters 只用來判斷是否對到太多地方
+  const pts = (exact.length?exact:hit).map(s=>({lat:s[2],lon:s[3],name:s[1]}));
+  pts.places = clusters.length;
+  return pts;
 }
 function nearMap(anchors, stops, radius){
   const m={};
@@ -518,8 +522,8 @@ async function runSearch(){
     const fromAnchors=findAnchors(from,stops), toAnchors=findAnchors(to,stops);
     if(!fromAnchors.length) throw new Error("找不到名稱含「"+from+"」的公車站，請換個寫法");
     if(!toAnchors.length) throw new Error("找不到名稱含「"+to+"」的公車站，請換個寫法");
-    if(fromAnchors.length>8 || toAnchors.length>8){
-      throw new Error("「"+(fromAnchors.length>8?from:to)+"」對到太多地方（"+Math.max(fromAnchors.length,toAnchors.length)+" 處），請打完整一點的站名");
+    if(fromAnchors.places>8 || toAnchors.places>8){
+      throw new Error("「"+(fromAnchors.places>8?from:to)+"」對到太多地方（"+Math.max(fromAnchors.places,toAnchors.places)+" 處），請打完整一點的站名");
     }
     const A=nearMap(fromAnchors,stops,radius), B=nearMap(toAnchors,stops,radius);
     let matches=[];
