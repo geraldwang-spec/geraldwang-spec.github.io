@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>電容式編碼器</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: same datasheet column as the other encoder pages. Bench 1 = unrolled rotor/stator + four-phase scope + demod readout; bench 2 = coarse/fine combination; then comparison and joint notes. */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --ink:#1b2430; --muted:#5b6675; --line:#d6dce3; --chip:#eef1f4;
+  --p0:#6a60d0; --p1:#0f8a68; --p2:#c8442b; --p3:#b07a12; --rx:#1b2430; --cu:#b7792f; --result:#0f7a62; --warn:#b5481c;
+  --f-display:"Noto Serif TC","Songti TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740; --chip:#222a33;
+  --p0:#9d95f0; --p1:#3cc29b; --p2:#e2694f; --p3:#e0b04a; --rx:#e6eaef; --cu:#d9a15c; --result:#3cc29b; --warn:#f08a5d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740; --chip:#222a33;
+  --p0:#9d95f0; --p1:#3cc29b; --p2:#e2694f; --p3:#e0b04a; --rx:#e6eaef; --cu:#d9a15c; --result:#3cc29b; --warn:#f08a5d; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,5vw,40px)} h2{font-size:24px} h3{font-size:17px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-size:13px;letter-spacing:.08em;color:var(--muted)}
+.lede{color:var(--muted);font-size:17px}
+section{display:flex;flex-direction:column;gap:16px}
+.bench{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.svgbox{overflow-x:auto}
+.svgbox svg{width:100%;min-width:600px;height:auto;display:block}
+.th{font-size:14px;font-weight:500;fill:var(--ink);font-family:var(--f-body)}
+.ts{font-size:12px;fill:var(--muted);font-family:var(--f-body)}
+.tm{font-size:12px;fill:var(--ink);font-family:var(--f-mono)}
+.ctl{display:grid;grid-template-columns:8.5em minmax(0,1fr) 5em;align-items:center;gap:10px;font-size:14px}
+.ctl label{color:var(--muted)}
+.ctl output{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--result)}
+select{font:inherit;font-size:14px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+button{font:inherit;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.on{border-color:var(--result);color:var(--result)}
+:focus-visible{outline:2px solid var(--result);outline-offset:2px}
+.two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.steps{display:flex;flex-direction:column;gap:10px;min-width:0}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start}
+.num{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.step .t{font-size:13px;color:var(--muted)}
+.step .v{font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.big{font-family:var(--f-mono);font-size:26px;font-weight:600;color:var(--result)}
+.ok{color:var(--result)} .bad{color:var(--warn)}
+.pill{font-size:12px;padding:1px 9px;border-radius:999px;border:1px solid currentColor;margin-left:8px;font-family:var(--f-body)}
+.wt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.wt div{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-family:var(--f-mono);font-size:12px;text-align:center}
+.wt b{display:block;font-size:14px}
+.formula{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--f-mono);font-size:15px;line-height:2;overflow-x:auto}
+.dim{color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.card p{font-size:15px}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:13px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.note{font-size:14px;color:var(--muted)}
+.src{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.src a{color:var(--result)}
+code{font-family:var(--f-mono);background:var(--chip);padding:1px 6px;border-radius:4px;font-size:.92em}
+ul{margin:0;padding-left:1.2em;max-width:68ch} li+li{margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="backlink" href="index.html#encoder" style="font-size:14px;color:var(--muted);text-decoration:none">← 回到工具站</a>
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">不用磁鐵：用電場量角度</div>
+  <h1>電容式編碼器</h1>
+  <p class="lede">定子送出四個相位相差 90° 的交流訊號，轉子上的正弦形導電圖案決定哪幾個訊號耦合得比較多。收到的合成訊號相位會跟著轉子角度走，同步解調後就得到 sin、cos，接下來跟霍爾磁環一樣用 atan2 算角度。</p>
+</header>
+
+<section>
+  <h2>四相激勵與同步解調</h2>
+  <div class="bench">
+    <div class="svgbox">
+      <svg id="struct" viewBox="0 0 680 244" role="img" aria-label="攤平的轉子與定子：轉子上有正弦形導電圖案，定子每個細週期有四個發射電極，下方是接收電極">
+        <defs><clipPath id="win"><rect x="40" y="0" width="600" height="236"/></clipPath></defs>
+        <text class="th" x="40" y="24">轉子（跟著軸轉，正弦形導電圖案）</text>
+        <g clip-path="url(#win)"><path id="rotor" fill="var(--cu)" opacity=".85"/></g>
+        <line x1="40" y1="96" x2="640" y2="96" stroke="var(--line)"/>
+        <text class="ts" x="640" y="128" text-anchor="end">空氣間隙（電容）　色條長度 = 該電極的耦合量</text>
+        <text class="th" x="40" y="148">定子：發射電極 T0 ~ T3（每個細週期 4 個）</text>
+        <g id="tx"></g>
+        <rect x="40" y="214" width="600" height="14" rx="3" fill="none" stroke="var(--rx)" stroke-width="1.2"/>
+        <text class="ts" x="46" y="225" style="fill:var(--rx)">接收電極 R：收到 T0 ~ T3 依耦合量加總的訊號</text>
+      </svg>
+    </div>
+    <div class="ctl"><label for="phi">轉子位置（電氣角）</label><input type="range" id="phi" min="0" max="359" step="1" value="60"><output id="phiO">60°</output></div>
+    <div class="ctl"><label for="nz">雜訊</label><input type="range" id="nz" min="0" max="0.8" step="0.05" value="0.15"><output id="nzO">0.15</output></div>
+    <div class="row"><button type="button" id="play">播放激勵波形</button><button type="button" id="spin">轉子自動轉</button><span>轉子位置拉到 0°、90°、180°、270°，看收到的訊號相位怎麼跟著移動。</span></div>
+
+    <div class="two">
+      <div class="svgbox"><svg id="scope" viewBox="0 0 560 330" role="img" aria-label="四個發射訊號乘上耦合量的波形，以及接收到的合成訊號與參考訊號"></svg></div>
+      <div class="steps" aria-live="polite">
+        <div class="step"><div class="num">1</div><div><div class="t">耦合量 wᵢ =（1 + cos(φ − i·90°)）÷ 2：轉子圖案蓋住哪個電極越多，w 越大</div><div class="wt" id="wts"></div></div></div>
+        <div class="step"><div class="num">2</div><div><div class="t">接收訊號 r(t) = Σ wᵢ · sin(ωt − i·90°)</div><div class="v" id="rx"></div></div></div>
+        <div class="step"><div class="num">3</div><div><div class="t">同步解調：乘上參考訊號後取平均（低通濾波），取 32 個週期</div><div class="v" id="dm"></div></div></div>
+        <div class="step"><div class="num">4</div><div><div class="t">atan2 算出電氣角</div><div class="v" id="at"></div><span class="big" id="atBig"></span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="formula">
+    r(t) = Σ wᵢ · sin(ωt − i·90°) = sin(ωt − φ) <span class="dim">（四個常數項加總剛好抵消）</span><br>
+    c = 2 · 平均[ r(t) × sin ωt ] = cos φ<br>
+    s = 2 · 平均[ r(t) × (−cos ωt) ] = sin φ<br>
+    φ = atan2(s, c)
+  </div>
+  <p class="note">收到的是一個頻率不變、相位落後 φ 的正弦波。轉子轉多少電氣角，訊號就落後多少，所以「相位」就是位置。同步解調只保留跟激勵同頻率的成分，雜訊和其他頻率的干擾在取平均時大多被濾掉；把雜訊拉大試試，算出的角度仍然很接近。</p>
+</section>
+
+<section>
+  <h2>粗 / 細通道組出絕對角度</h2>
+  <p>細通道一圈重複 N 次，精度高但只知道「在一個細週期裡的位置」；粗通道是一個偏心的圓形圖案，一圈只變化一次，直接給出整圈的粗略角度。用粗角度判斷第幾個細週期 k，再用細通道算精確值，公式和 Nonius 最後一步一樣。</p>
+  <div class="bench">
+    <div class="ctl"><label for="th">實際角度 θ</label><input type="range" id="th" min="0" max="359.9" step="0.1" value="100"><output id="thO">100.0°</output></div>
+    <div class="ctl"><label for="cerr">粗通道誤差</label><input type="range" id="cerr" min="-12" max="12" step="0.25" value="1.5"><output id="cerrO">+1.5°</output></div>
+    <div class="ctl"><label for="nf">細通道週期 N</label><select id="nf"><option value="16">16</option><option value="32" selected>32</option><option value="64">64</option></select><span></span></div>
+    <div class="svgbox"><svg id="cfplot" viewBox="0 0 680 180" role="img" aria-label="粗通道一圈一個週期，細通道一圈 N 個週期，標出目前角度"></svg></div>
+    <div class="steps" id="cf"></div>
+  </div>
+  <div class="tablebox"><table>
+    <thead><tr><th></th><th>磁性 Nonius（霍爾）</th><th>電容式粗 / 細</th></tr></thead>
+    <tbody>
+      <tr><td>兩個通道的週期</td><td>M 和 M − 1（例如 32 / 31）</td><td>N 和 1（例如 32 / 1），大直徑可再加中間通道</td></tr>
+      <tr><td>粗角度怎麼來</td><td>φA − φB，兩軌相減</td><td>粗通道直接讀出</td></tr>
+      <tr><td>粗角度的誤差</td><td>兩軌誤差疊加</td><td>只有粗通道本身的誤差</td></tr>
+      <tr><td>決定 k 的公式</td><td colspan="2">k = round((N × 粗角度 − φ細) ÷ 360) mod N，θ = (φ細 + 360 × k) ÷ N，容許的粗角度誤差都是 ±180 ÷ N</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>跟霍爾磁環比較</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>項目</th><th>霍爾 + 磁環</th><th>電容式</th></tr></thead>
+    <tbody>
+      <tr><td>訊號來源</td><td>永久磁鐵本身的磁場</td><td>定子自己送出的交流電場</td></tr>
+      <tr><td>前端電路</td><td>差動放大後直接進 ADC</td><td>四相激勵 + 電荷放大 + 同步解調，通常整合在 ASIC</td></tr>
+      <tr><td>受磁場影響</td><td>會，馬達漏磁、剎車線圈要特別處理</td><td>不會，沒有磁鐵</td></tr>
+      <tr><td>受電場干擾</td><td>較不敏感</td><td>要屏蔽和良好接地，留意驅動器 PWM 雜訊</td></tr>
+      <tr><td>灰塵、油污</td><td>不怕</td><td>不怕非導電的；水氣、凝結水、導電液體會改變介電常數</td></tr>
+      <tr><td>外型</td><td>磁環 + 讀頭</td><td>兩片 PCB，可以做得很薄、很輕、中空</td></tr>
+      <tr><td>MCU 端</td><td>可以自己用 ADC + atan2 做</td><td>幾乎都買整合模組，用 SSI / BiSS / SPI 讀角度</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cards">
+    <div class="card"><h3>Netzer（高階）</h3><p>中空軸，厚度 6 mm 起，VLX 系列標明用於工業與機器人，解析度 17 ~ 23 bit，精度可到 ±0.006°，輸出 SSI 或 BiSS；部分型號重量低於 15 g。</p></div>
+    <div class="card"><h3>Same Sky / CUI AMT（低價）</h3><p>絕對式 12 或 14 bit，角度精度約 0.2°，5 V 下工作電流低到 6 mA。適合馬達換相與一般定位，不適合精密關節。</p></div>
+    <div class="card"><h3>用在關節的優點</h3><p>馬達和剎車就在旁邊也不受影響，這是電容式最大的賣點。薄、輕、中空，大直徑時細通道週期可以做很多，精度高。</p></div>
+    <div class="card"><h3>用在關節要注意</h3><p>間隙、偏心和轉子晃動仍會影響訊號；驅動器切換雜訊要靠屏蔽和接地處理；會結露的環境要評估密封。</p></div>
+  </div>
+  <div class="src">
+    <span>參考資料</span>
+    <a href="https://patents.google.com/patent/US6788220" target="_blank" rel="noopener">US6788220B2 Multi-speed capacitive displacement encoder（四相激勵、同步偵測、粗 / 細通道）</a>
+    <a href="https://technology.bibus.com/fr-en/our-products-bibus-france/absolute-rotary-encoders/" target="_blank" rel="noopener">Netzer absolute rotary encoders（Bibus）</a>
+    <a href="https://humanoidroboticstechnology.com/videos/how-netzers-electric-encoder-works-high-precision-absolute-capacitive-encoder/" target="_blank" rel="noopener">How Netzer's Electric Encoder Works</a>
+    <a href="https://www.futureelectronics.com/ftm/industrial-robotics-industry-5-0/same-sky-cui-devices-amt-series-rotary-encoders" target="_blank" rel="noopener">Same Sky / CUI AMT series（Future Electronics）</a>
+  </div>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const D=180/Math.PI, md=x=>((x%360)+360)%360;
+const f3=x=>(Math.abs(x)<5e-4?0:x).toFixed(3).replace('-','−');
+const f1=x=>(Math.abs(x)<0.05?0:x).toFixed(1).replace('-','−');
+const PH=['var(--p0)','var(--p1)','var(--p2)','var(--p3)'];
+const X0=40,P=240;
+let tPhase=0;
+
+/* ---------- structure ---------- */
+(function drawTx(){
+  let h='';
+  for(let n=0;n<3;n++)for(let i=0;i<4;i++){
+    const x=X0+n*P+i*P/4;if(x>=640)continue;const w=Math.min(P/4-8,640-x-4);if(w<=0)continue;
+    h+=`<rect id="cp${n}_${i}" x="${x+4}" y="103" height="7" rx="2" fill="${PH[i]}"/><rect x="${x+4}" y="158" width="${w}" height="40" rx="3" fill="${PH[i]}"/>`+
+       `<text x="${x+4+w/2}" y="182" text-anchor="middle" font-size="12" fill="#fff" font-family="var(--f-mono)">T${i} ${i*90}°</text>`;}
+  $('tx').innerHTML=h;
+})();
+function drawRotor(phi){
+  const off=phi/360*P;let d=`M${X0-P} 90`;
+  for(let x=X0-P;x<=640+P;x+=4){const u=(x-(X0+P/8+off))/P*2*Math.PI;d+=`L${x} ${(90-46*(1+Math.cos(u))/2).toFixed(1)}`;}
+  d+=`L${640+P} 90Z`;$('rotor').setAttribute('d',d);
+}
+const wts=phi=>[0,1,2,3].map(i=>(1+Math.cos((phi-i*90)/D))/2);
+
+/* ---------- demod ---------- */
+let rng=1;const rand=()=>{rng=(rng*16807)%2147483647;return rng/2147483647;};
+const gauss=()=>{let u=0,v=0;while(!u)u=rand();v=rand();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+function demod(phi,nz){
+  const w=wts(phi),N=32*64;let I=0,Q=0;
+  for(let k=0;k<N;k++){const wt=2*Math.PI*k/64;let r=0;for(let i=0;i<4;i++)r+=w[i]*Math.sin(wt-i*Math.PI/2);r+=nz*gauss()+0.4*nz*Math.sin(wt*0.37+1);
+    I+=r*Math.sin(wt);Q+=r*(-Math.cos(wt));}
+  return {c:2*I/N,s:2*Q/N,w};
+}
+
+/* ---------- scope ---------- */
+function drawScope(phi,nz){
+  const w=wts(phi),L=70,R=550,cyc=2,X=t=>L+(R-L)*t/cyc;
+  const yT=[26,66,106,146],aT=13,yR=236,aR=44;
+  let h='';
+  const wave=(f,y0,a)=>{let d='';for(let k=0;k<=160;k++){const t=k/160*cyc;d+=(k?'L':'M')+X(t).toFixed(1)+' '+(y0-a*f(2*Math.PI*t+tPhase)).toFixed(1);}return d;};
+  for(let i=0;i<4;i++){
+    h+=`<text class="tm" x="0" y="${yT[i]+4}" style="fill:${PH[i]}">T${i} ×${w[i].toFixed(2)}</text>`+
+       `<line x1="${L}" y1="${yT[i]}" x2="${R}" y2="${yT[i]}" stroke="var(--line)"/>`+
+       `<path d="${wave(x=>Math.sin(x-i*Math.PI/2),yT[i],aT)}" fill="none" stroke="${PH[i]}" stroke-width="1" opacity=".25"/>`+
+       `<path d="${wave(x=>w[i]*Math.sin(x-i*Math.PI/2),yT[i],aT)}" fill="none" stroke="${PH[i]}" stroke-width="2"/>`;}
+  h+=`<text class="ts" x="${L}" y="176">淡線：送出的訊號　粗線：乘上耦合量後實際傳到接收電極的部分</text>`;
+  rng=7;let nd='';for(let k=0;k<=160;k++){const t=k/160*cyc,x=2*Math.PI*t+tPhase;let r=0;for(let i=0;i<4;i++)r+=w[i]*Math.sin(x-i*Math.PI/2);r+=nz*gauss()*0.6;nd+=(k?'L':'M')+X(t).toFixed(1)+' '+(yR-aR*r).toFixed(1);}
+  h+=`<text class="tm" x="0" y="${yR-24}">接收 r(t)</text><text class="tm" x="0" y="${yR+30}" style="fill:var(--muted)">參考 sin ωt</text>`+
+     `<line x1="${L}" y1="${yR}" x2="${R}" y2="${yR}" stroke="var(--line)"/>`+
+     `<path d="${wave(Math.sin,yR,aR)}" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="5 4"/>`+
+     `<path d="${nd}" fill="none" stroke="var(--rx)" stroke-width="2"/>`;
+  // phase lag marker: reference peak vs received peak in first cycle
+  const tRef=md((90-tPhase*D))/360, tRx=md((90+phi-tPhase*D))/360;
+  const xr=X(tRef),xx=X(tRx<tRef?tRx+1:tRx);
+  if(xx<=R+0.5&&phi>2){h+=`<line x1="${xr}" y1="${yR-aR-14}" x2="${xr}" y2="${yR-aR-4}" stroke="var(--muted)"/><line x1="${xx}" y1="${yR-aR-14}" x2="${xx}" y2="${yR-aR-4}" stroke="var(--rx)"/>`+
+    `<line x1="${xr}" y1="${yR-aR-9}" x2="${xx}" y2="${yR-aR-9}" stroke="var(--result)" stroke-width="2"/><text class="tm" x="${(xr+xx)/2}" y="${yR-aR-16}" text-anchor="middle" style="fill:var(--result)">落後 ${Math.round(phi)}°</text>`;}
+  h+=`<text class="ts" x="${(L+R)/2}" y="322" text-anchor="middle">時間（2 個激勵週期，約 10 kHz）</text>`;
+  $('scope').innerHTML=h;
+}
+
+function upd(){
+  const phi=+$('phi').value,nz=+$('nz').value;
+  $('phiO').textContent=phi+'°';$('nzO').textContent=nz.toFixed(2);
+  drawRotor(phi);
+  const w=wts(phi);
+  for(let n=0;n<3;n++)for(let i=0;i<4;i++){const el=$(`cp${n}_${i}`);if(el){const x=X0+n*P+i*P/4,full=Math.min(P/4-8,640-x-4);el.setAttribute('width',Math.max(0,full*w[i]).toFixed(1));}}
+  $('wts').innerHTML=w.map((v,i)=>`<div style="border-color:${PH[i]}"><span style="color:${PH[i]}">T${i}</span><b>${v.toFixed(2)}</b></div>`).join('');
+  $('rx').innerHTML=`= ${w.map((v,i)=>`${v.toFixed(2)}·sin(ωt − ${i*90}°)`).join(' + ')}<br>= sin(ωt − ${phi}°)　<span class="dim">相位落後 ${phi}°</span>`;
+  const r=demod(phi,nz),out=md(Math.atan2(r.s,r.c)*D),err=md(out-phi+180)-180;
+  $('dm').innerHTML=`c = 2·平均[r × sin ωt] = ${f3(r.c)}　<span class="dim">（cos ${phi}° = ${f3(Math.cos(phi/D))}）</span><br>s = 2·平均[r × (−cos ωt)] = ${f3(r.s)}　<span class="dim">（sin ${phi}° = ${f3(Math.sin(phi/D))}）</span>`;
+  $('at').innerHTML=`atan2(${f3(r.s)}, ${f3(r.c)}) → <span class="pill ${Math.abs(err)<1?'ok':'bad'}">與實際差 ${err>=0?'+':'−'}${Math.abs(err).toFixed(2)}°</span>`;
+  $('atBig').textContent=f1(out)+'°';
+  drawScope(phi,nz);
+}
+let playing=false,spinning=false,last=0;
+function tick(ts){if(!playing&&!spinning){last=0;return;}const dt=last?Math.min((ts-last)/1000,.1):0;last=ts;
+  if(playing)tPhase=(tPhase-dt*2*Math.PI*0.5)%(2*Math.PI);
+  if(spinning)$('phi').value=Math.round(md(+$('phi').value+dt*30));
+  upd();requestAnimationFrame(tick);}
+$('play').addEventListener('click',()=>{playing=!playing;$('play').classList.toggle('on',playing);$('play').textContent=playing?'暫停波形':'播放激勵波形';if(playing||spinning){last=0;requestAnimationFrame(tick);}});
+$('spin').addEventListener('click',()=>{spinning=!spinning;$('spin').classList.toggle('on',spinning);$('spin').textContent=spinning?'停止轉動':'轉子自動轉';if(playing||spinning){last=0;requestAnimationFrame(tick);}});
+['phi','nz'].forEach(id=>$(id).addEventListener('input',upd));
+upd();
+
+/* ---------- coarse / fine ---------- */
+function cf(){
+  const th=+$('th').value,e=+$('cerr').value,N=+$('nf').value;
+  $('thO').textContent=th.toFixed(1)+'°';$('cerrO').textContent=(e>0?'+':e<0?'−':'')+Math.abs(e).toFixed(1)+'°';
+  const pf=md(N*th),tc=md(th+e),raw=(N*tc-pf)/360,kr=Math.round(raw),k=((kr%N)+N)%N,out=(pf+360*k)/N,per=360/N;
+  const errOut=md(out-th+180)-180,ok=Math.abs(errOut)<0.01;
+  $('cf').innerHTML=`
+    <div class="step"><div class="num">1</div><div><div class="t">細通道（一圈 ${N} 個週期）</div><div class="v">φ細 = ${N} × ${th.toFixed(1)} mod 360 = <b>${f1(pf)}°</b></div></div></div>
+    <div class="step"><div class="num">2</div><div><div class="t">粗通道（一圈 1 個週期，含誤差）</div><div class="v">θ粗 = ${th.toFixed(1)} ${e<0?'−':'+'} ${Math.abs(e).toFixed(1)} = <b>${f1(tc)}°</b></div></div></div>
+    <div class="step"><div class="num">3</div><div><div class="t">判斷第幾個細週期 k（每格 ${+per.toFixed(3)}°，容許粗角度誤差 ±${+(per/2).toFixed(3)}°）</div><div class="v">round((${N} × ${f1(tc)} − ${f1(pf)}) ÷ 360) = round(${raw.toFixed(2)}) → <b>k = ${k}</b></div></div></div>
+    <div class="step"><div class="num">4</div><div><div class="t">精確角度</div><div class="v">θ = (${f1(pf)} + 360 × ${k}) ÷ ${N} = <span class="big" style="font-size:20px">${out.toFixed(2)}°</span><span class="pill ${ok?'ok':'bad'}">${ok?'k 正確':`k 判錯，跳了 ${errOut.toFixed(2)}°`}</span></div></div></div>`;
+  const L=110,R=660,X=a=>L+(R-L)*a/360;
+  let h=`<text class="tm" x="0" y="44" style="fill:var(--p2)">粗通道 1 週期</text><text class="tm" x="0" y="114" style="fill:var(--p0)">細通道 ${N} 週期</text>`;
+  h+=`<rect x="${L}" y="16" width="${R-L}" height="44" rx="3" fill="none" stroke="var(--line)"/><rect x="${L}" y="86" width="${R-L}" height="44" rx="3" fill="none" stroke="var(--line)"/>`;
+  h+=`<path d="M${L} 60 L${R} 16" fill="none" stroke="var(--p2)" stroke-width="2"/>`;
+  let d='';for(let j=0;j<N;j++){d+=`M${X(j*per).toFixed(2)} 130 L${X((j+1)*per).toFixed(2)} 86`;}
+  h+=`<path d="${d}" fill="none" stroke="var(--p0)" stroke-width="1.2"/>`;
+  h+=`<rect x="${X(k*per).toFixed(1)}" y="86" width="${(X(per)-L).toFixed(1)}" height="44" fill="var(--result)" opacity=".15"/>`;
+  h+=`<line x1="${X(th)}" y1="10" x2="${X(th)}" y2="136" stroke="var(--ink)" stroke-dasharray="4 3"/><line x1="${X(tc)}" y1="10" x2="${X(tc)}" y2="64" stroke="var(--p2)" stroke-width="2"/>`;
+  h+=`<g font-family="var(--f-mono)" font-size="12" fill="var(--muted)"><text x="${L}" y="152">0°</text><text x="${X(180)}" y="152" text-anchor="middle">180°</text><text x="${R}" y="152" text-anchor="end">360°</text></g>`;
+  h+=`<text class="ts" x="${L}" y="172">黑色虛線是實際角度，紅線是粗通道讀到的角度，綠色色塊是判斷出的第 k 個細週期</text>`;
+  $('cfplot').innerHTML=h;
+}
+['th','cerr'].forEach(id=>$(id).addEventListener('input',cf));$('nf').addEventListener('change',cf);
+cf();
+</script>
+</body>
+</html>

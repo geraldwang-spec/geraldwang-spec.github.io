@@ -7,6 +7,7 @@
 - `sensors.html`：讀頭與磁軌感測器（8 顆差動霍爾的排列與讀值）
 - `atan2.html`：atan2 單位圓（sin、cos 怎麼變成角度）
 - `nonius.html`：Nonius 雙磁軌絕對角度計算
+- `capacitive.html`：電容式編碼器（四相激勵、同步解調、粗 / 細通道）
 - `adc.html`：ADC 電壓換算器
 
 硬體量測計算（大項 `bench`，由原本的 Excel 小工具改寫，共用 `bench.css`、`bench.js`）：

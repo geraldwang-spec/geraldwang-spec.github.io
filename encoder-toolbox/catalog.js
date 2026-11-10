@@ -44,6 +44,14 @@ window.CATALOG = [
         points: ["磁環轉動動畫、ADC 示波器、李薩如圖", "加入雜訊、偏移、增益誤差，觀察 k 判錯", "MCU 韌體流程與 C 範例"]
       },
       {
+        id: "capacitive",
+        name: "電容式編碼器",
+        href: "capacitive.html",
+        summary: "不用磁鐵改用電場：四相激勵怎麼合成出隨角度改變相位的訊號，同步解調後得到 sin、cos，再用粗 / 細通道組出絕對角度。",
+        tags: ["四相激勵", "同步解調", "粗 / 細通道"],
+        points: ["轉子圖案與發射電極的耦合動畫", "接收訊號相位落後 = 轉子角度", "粗 / 細組合與 Nonius 對照、與霍爾比較"]
+      },
+      {
         id: "adc",
         name: "ADC 電壓換算器",
         href: "adc.html",
