@@ -70,3 +70,7 @@ I18N.frags({
   "，": ", ",
   "。": "."
 });
+/* meta description */
+I18N.add({
+  "電壓換成 ADC 數字、數字換回電壓，看一格多大、量化誤差多少。": "Voltage to ADC code and code back to voltage: see the size of one step and the quantization error."
+});

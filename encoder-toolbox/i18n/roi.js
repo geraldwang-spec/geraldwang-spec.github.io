@@ -29,3 +29,7 @@ I18N.rules([
   [/^超出畫面：(.+)$/, function (_, s) { return "Outside the frame: " + s.split("、").join(", "); }]
 ]);
 I18N.frags({ "座標 (": " (" });
+/* meta description */
+I18N.add({
+  "影像上的正方形取樣框：從解析度、框大小和位置比例算出中心點與左上角座標。": "Square sampling boxes on an image: centre and top-left coordinates from resolution, box size and position ratio."
+});

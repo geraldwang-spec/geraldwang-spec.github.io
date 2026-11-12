@@ -22,3 +22,7 @@ I18N.rules([
   [/^(\d+) 筆：$/, "$1 value(s):\u00a0"]
 ]);
 I18N.frags({ "、": ", " });
+/* meta description */
+I18N.add({
+  "貼上一串量測值，算最大、最小、平均、標準差和平均 ± 3σ 上下限。": "Paste a list of measurements to get max, min, mean, standard deviation and mean ± 3σ limits."
+});

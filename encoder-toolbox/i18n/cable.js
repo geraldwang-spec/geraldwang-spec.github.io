@@ -37,3 +37,7 @@ I18N.frags({
   "低於規格表範圍，用前兩列外插。": "Below the spec table, extrapolated from the first two rows. ",
   "線材衰減在規格表兩點之間用線性內插。": "Cable attenuation is linearly interpolated between two points of the spec table."
 });
+/* meta description */
+I18N.add({
+  "依線材衰減規格、線長、接頭和組裝損耗，算出各頻率的總 loss。": "Total loss at each frequency from cable attenuation spec, length, connectors and assembly loss."
+});

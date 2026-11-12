@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://geraldwang-spec.github.io/sitemap.xml

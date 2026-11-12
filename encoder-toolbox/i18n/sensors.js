@@ -64,3 +64,7 @@ I18N.add({
   "實際的晶片（例如 iC-MU）每條磁軌下面是一整排霍爾元件，分散在一個極距內加總，再合成這 4 路訊號，用來平均掉磁場的諧波。這頁畫的 8 顆是完成差動 sin / cos 的最少數量。": "Real chips (e.g. iC-MU) have a whole row of Hall elements under each track, spread over one pole pitch and summed to synthesize these 4 signals, averaging out field harmonics. The 8 sensors drawn here are the minimum needed for differential sin / cos."
 });
 I18N.frags({ "（": " (", "）": ")" });
+/* meta description */
+I18N.add({
+  "把磁環攤平，看 8 顆霍爾感測器怎麼排、各自讀到多少，再兩兩相減成 ADC 的 4 個通道。": "Unroll the magnetic ring and see how the 8 Hall sensors are laid out, what each one reads, and how pairs are subtracted into the ADC's 4 channels."
+});

@@ -143,3 +143,7 @@ I18N.frags([
   [/(\S+) 的欄位「(.+?)」只能用英文、數字、底線/g, "Column “$2” in $1 may only use English letters, digits and underscores"],
   ['root(("中心主題"))', 'root(("Central topic"))']
 ]);
+/* meta description */
+I18N.add({
+  "用表單編輯資料表、欄位和關係，右邊即時畫出 ER 圖；也能畫心智圖、記討論筆記。": "Edit tables, columns and relationships in a form and watch the ER diagram draw itself; also mind maps and discussion notes."
+});

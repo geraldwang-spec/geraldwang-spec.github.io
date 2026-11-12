@@ -116,3 +116,7 @@
     "；": "; "
   });
 })();
+/* meta description */
+I18N.add({
+  "輸入上車、下車地點，找出兩邊步行範圍內的公車站之間能直達的路線，和指定日期的班表、即時到站。": "Enter where you get on and off to find bus routes that run directly between stops within walking distance of each, with timetables for a chosen date and live arrivals."
+});

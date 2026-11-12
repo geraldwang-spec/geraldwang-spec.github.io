@@ -64,3 +64,7 @@
     ["～bit ", "–bit "]
   ]);
 })();
+/* meta description */
+I18N.add({
+  "畫面怎麼變成傳給電子紙的 bytes：自訂寬、高與每點 bit 數，滑過任一點看它在哪個 byte 的哪個 bit。": "How a screen becomes the bytes sent to an e-paper panel: set width, height and bits per pixel, then hover any pixel to see which bit of which byte it lands in."
+});

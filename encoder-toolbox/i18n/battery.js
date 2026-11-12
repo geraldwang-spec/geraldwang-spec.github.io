@@ -102,3 +102,7 @@
     "〔": "[", "〕": "]"
   });
 })();
+/* meta description */
+I18N.add({
+  "輸入電池容量、耗電流、滿電和斷電電壓，算出可以用多久，以及每個電量 % 對應的電壓。": "Enter capacity, current draw, full and cut-off voltage to get run time, plus the voltage for each % of charge."
+});

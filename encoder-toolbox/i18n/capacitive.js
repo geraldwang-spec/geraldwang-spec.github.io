@@ -104,3 +104,7 @@ I18N.rules([
   [/^k 判錯，跳了 (.+)$/, "k wrong, jumped $1"]
 ]);
 I18N.rules([[/^(.+)（(.+)）$/, "$1 ($2)"]]);
+/* meta description */
+I18N.add({
+  "不用磁鐵改用電場：四相激勵怎麼合成出隨角度改變相位的訊號，同步解調後得到 sin、cos，再用粗 / 細通道組出絕對角度。": "Electric field instead of magnets: how four-phase excitation builds a signal whose phase follows the angle, how synchronous demodulation yields sin and cos, and how coarse / fine channels combine into absolute angle."
+});

@@ -31,3 +31,7 @@ I18N.frags({
   "// 啟用 PIT": "// enable PIT",
   "// 週期超出範圍": "// period out of range"
 });
+/* meta description */
+I18N.add({
+  "NXP KL27 的 PIT 計時器要多久觸發一次，LDVAL 填多少；也能從 LDVAL 算回週期。": "How often the NXP KL27 PIT timer should fire and what to put in LDVAL; or work back from LDVAL to the period."
+});

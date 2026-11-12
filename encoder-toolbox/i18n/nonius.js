@@ -173,3 +173,7 @@ I18N.frags({
   "// k 快判錯": "// k close to going wrong",
   "// 不可能的跳動": "// impossible jump"
 });
+/* meta description */
+I18N.add({
+  "雙磁軌從 ADC 讀值一路算到絕對角度，理論值和實測值並排比較。": "A dual-track design from ADC readings all the way to absolute angle, with theoretical and measured values side by side."
+});

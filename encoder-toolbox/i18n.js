@@ -105,7 +105,13 @@
   function translateNow(root) {
     if (lang !== 'en') return;
     busy = true;
-    try { walk(root || document.documentElement); var tt = lookup(document.title); if (tt != null) document.title = val(tt); }
+    try {
+      walk(root || document.documentElement);
+      var tt = lookup(document.title); if (tt != null) document.title = val(tt);
+      // 搜尋結果用的頁面說明
+      var md = document.querySelector('meta[name="description"]');
+      if (md) { var mv = lookup(md.content); if (mv != null) md.content = val(mv); }
+    }
     finally { busy = false; if (observer) observer.takeRecords(); }
   }
   function startObserver() {

@@ -16,3 +16,7 @@ I18N.add({
   "電壓 (V)": "Voltage (V)",
   "電壓 = V × (1 − 下降%)，max / min = 電壓 × (1 ± 容差%)。": "Voltage = V × (1 − drop%), max / min = voltage × (1 ± tolerance%)."
 });
+/* meta description */
+I18N.add({
+  "電源軌 ±% 的上下限，以及電壓降到某個百分比時的 max / min 範圍。": "High / low limits of a rail at ±%, and the max / min range when the voltage drops to a given percentage."
+});

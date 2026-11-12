@@ -27,3 +27,7 @@ I18N.rules([
   [/^刪除第 (\d+) 筆$/, "Delete row $1"]
 ]);
 I18N.frags({ " 32-bit 補數)": " 32-bit two's complement)" });
+/* meta description */
+I18N.add({
+  "量測頻率和目標頻率差多少，換成 2^20 基準的 trim value，以及多筆量測的 PPM 誤差。": "How far the measured frequency is from target, converted to a 2^20-based trim value, plus PPM error over multiple measurements."
+});

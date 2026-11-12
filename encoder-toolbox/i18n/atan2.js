@@ -69,3 +69,7 @@ I18N.frags({
   "// 轉成 0 ~ 360°": "// convert to 0 ~ 360°",
   "// 振幅檢查，正常約 1.0": "// amplitude check, normally about 1.0"
 });
+/* meta description */
+I18N.add({
+  "拖動單位圓上的點，看 sin、cos 怎麼用 atan2 變成角度，以及 atan(s ÷ c) 在哪裡會算錯。": "Drag a point on the unit circle to see how atan2 turns sin and cos into an angle, and where atan(s ÷ c) goes wrong."
+});

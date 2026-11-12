@@ -420,3 +420,7 @@ I18N.rules([
   [/^：(.+)$/, function (_, s) { return ": " + I18N.t(s); }],
   [/^(.+) · (.+)$/, function (s, a, b) { var x = I18N.t(a); return x !== a ? x + " · " + I18N.t(b) : s; }]
 ]);
+/* meta description */
+I18N.add({
+  "醫院 HIS 到床邊 RTL8720DN 電子紙的四層架構，點區塊和箭頭看職責、通訊方式、需要確認的事項與出處。": "Four-layer architecture from the hospital HIS to a bedside RTL8720DN e-paper display. Click blocks and arrows to see responsibilities, protocols, open questions and sources."
+});
