@@ -92,10 +92,6 @@ nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap
 .crumbs .sep{color:var(--line-2)}
 .crumbs .cur{color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 .top .act{margin-left:auto;display:flex;gap:8px}
-.langsw{display:flex;gap:2px;padding:3px;border:1px solid var(--line-2);border-radius:8px;flex:none}
-.langsw button{border:0;background:none;color:var(--muted);height:28px;padding:0 9px;border-radius:5px;cursor:pointer;font-size:13px;transition:background .25s var(--silk),color .25s var(--silk)}
-.langsw button:hover{color:var(--ink)}
-.langsw button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
 .btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);background:none;color:var(--text);
   font-size:14px;text-decoration:none;cursor:pointer;white-space:nowrap;transition:border-color .25s var(--silk),color .25s var(--silk),background .25s var(--silk)}
 .btn:hover{border-color:var(--accent);color:var(--ink)}
@@ -166,7 +162,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 <link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/?lang=zh">
 <link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/?lang=en">
 <link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/">
-<script>window.I18N_NO_TOGGLE=true;</script><script src="i18n.js?v=20261112"></script>
+<script>window.I18N_NO_TOGGLE=true;</script><script src="i18n.js?v=20261112-2"></script>
 <script src="catalog.js?v=20261112-1100"></script>
 </head>
 <body>
@@ -196,7 +192,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
       <button class="menu" id="menuBtn" aria-label="開啟選單" data-k-aria="openMenu" aria-controls="rail" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="crumbs" id="crumbs"></div>
       <div class="act" id="topAct"></div>
-      <div class="langsw" id="langSw" role="group" aria-label="Language / 語言"><button type="button" data-lang="zh" lang="zh-Hant">中文</button><button type="button" data-lang="en" lang="en">EN</button></div>
+      <div id="settingsHost" style="display:flex;flex:none"></div>
     </header>
     <div id="content"></div>
   </div>
@@ -234,10 +230,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   document.querySelectorAll('[data-k-aria]').forEach(e => e.setAttribute('aria-label', S[e.dataset.kAria]));
   document.querySelectorAll('[data-k-title]').forEach(e => e.title = S[e.dataset.kTitle]);
   if (EN) { const md = document.querySelector('meta[name="description"]'); if (md) md.content = 'Learning and calculation tools for hardware, firmware and software work: encoders, ADC, Nonius absolute angle, bench calculations, an ER-diagram sketchboard, and notes on a bedside e-paper system.'; }
-  document.querySelectorAll('#langSw button').forEach(b => {
-    b.setAttribute('aria-pressed', String(b.dataset.lang === LANG));
-    b.addEventListener('click', () => { if (window.I18N) I18N.set(b.dataset.lang); });
-  });
+  // 右上角的設定鍵（目前裡面有語言設定）
+  if (window.I18N) I18N.settings(document.getElementById('settingsHost'));
   const ICONS = {
     encoder:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 3v2M21 12h-2M12 21v-2M3 12h2M18.4 5.6l-1.4 1.4M18.4 18.4l-1.4-1.4M5.6 18.4l1.4-1.4M5.6 5.6l1.4 1.4"/>',
     chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',

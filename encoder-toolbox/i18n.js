@@ -142,28 +142,64 @@
     else location.reload();
   }
 
-  /* 獨立開啟的工具頁（非內嵌）右下角的語言切換鈕 */
+  /*
+   * 設定鍵（齒輪）＋設定面板，目前面板裡有「語言」。
+   *   I18N.settings(host)              放進 host 元素裡（首頁上方工具列用）
+   *   沒有 host 時：固定在畫面右下角（獨立開啟的工具頁）
+   * 之後要加其他設定，在 rows 裡多放一列即可。
+   */
+  var CSS = '.i18s{position:relative;display:inline-flex;font:400 14px/1.4 system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}' +
+    '.i18s.float{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));z-index:9999}' +
+    '.i18s-btn{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;cursor:pointer;color:#b9cadb;background:rgba(20,27,36,.86);border:1px solid rgba(255,255,255,.14);' +
+      'box-shadow:0 4px 14px rgba(0,0,0,.18);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:color .2s,border-color .2s}' +
+    '.i18s-btn:hover,.i18s-btn[aria-expanded="true"]{color:#fff;border-color:#4a9ee8}' +
+    '.i18s-btn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:transform .35s}' +
+    '.i18s-btn[aria-expanded="true"] svg{transform:rotate(60deg)}' +
+    '.i18s.inline .i18s-btn{width:36px;height:36px;border-radius:8px;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-color:var(--line-2,rgba(255,255,255,.14));color:var(--text,#b9cadb)}' +
+    '.i18s-panel{position:absolute;right:0;min-width:240px;padding:14px;border-radius:12px;background:#141b24;color:#e7eef6;border:1px solid #2a4060;box-shadow:0 12px 32px rgba(0,0,0,.35)}' +
+    '.i18s.float .i18s-panel{bottom:calc(100% + 8px)}.i18s.inline .i18s-panel{top:calc(100% + 8px);z-index:50}' +
+    '.i18s-panel[hidden]{display:none}' +
+    '.i18s-title{font-weight:600;font-size:13px;letter-spacing:.04em;color:#9db7cc;margin:0 0 10px}' +
+    '.i18s-row{display:flex;align-items:center;justify-content:space-between;gap:12px}' +
+    '.i18s-row label{color:#e7eef6}' +
+    '.i18s-row select{font:inherit;color:#e7eef6;background:#0f1319;border:1px solid #2a4060;border-radius:7px;padding:5px 8px;cursor:pointer;color-scheme:dark}' +
+    '.i18s-hint{margin:10px 0 0;font-size:12px;color:#64809a}' +
+    '.i18s :focus-visible{outline:2px solid #4a9ee8;outline-offset:2px}' +
+    '@media print{.i18s{display:none}}';
+  var GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+  var uid = 0;
+  function settings(host) {
+    if (!document.getElementById('i18sCss')) {
+      var st = document.createElement('style'); st.id = 'i18sCss'; st.textContent = CSS; document.head.appendChild(st);
+    }
+    var en = lang === 'en', id = 'i18s' + (++uid);
+    var box = document.createElement('div');
+    box.className = 'i18s ' + (host ? 'inline' : 'float');
+    box.setAttribute('data-no-i18n', '');
+    box.innerHTML =
+      '<button type="button" class="i18s-btn" aria-haspopup="true" aria-expanded="false" aria-controls="' + id + '" title="' + (en ? 'Settings' : '設定') + '" aria-label="' + (en ? 'Settings' : '設定') + '">' + GEAR + '</button>' +
+      '<div class="i18s-panel" id="' + id + '" role="dialog" aria-label="' + (en ? 'Settings' : '設定') + '" hidden>' +
+        '<p class="i18s-title">' + (en ? 'Settings' : '設定') + '</p>' +
+        '<div class="i18s-row"><label for="' + id + '-lang">' + (en ? 'Language' : '語言') + '</label>' +
+          '<select id="' + id + '-lang"><option value="zh" lang="zh-Hant">中文（繁體）</option><option value="en" lang="en">English</option></select></div>' +
+        '<p class="i18s-hint">' + (en ? 'Default follows your browser language.' : '預設依瀏覽器語言，選過後會記住。') + '</p>' +
+      '</div>';
+    var btn = box.querySelector('.i18s-btn'), panel = box.querySelector('.i18s-panel'), sel = box.querySelector('select');
+    sel.value = lang;
+    function show(on) { panel.hidden = !on; btn.setAttribute('aria-expanded', String(on)); if (on) sel.focus(); }
+    btn.addEventListener('click', function () { show(panel.hidden); });
+    sel.addEventListener('change', function () { setLang(sel.value); });
+    document.addEventListener('click', function (e) { if (!panel.hidden && !box.contains(e.target)) show(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hidden) { show(false); btn.focus(); } });
+    (host || document.body).appendChild(box);
+    return box;
+  }
+  /* 獨立開啟的工具頁（非內嵌）：右下角放設定鍵；內嵌時由首頁的設定鍵控制 */
   function addToggle() {
     var embed = false;
     try { embed = new URLSearchParams(location.search).get('embed') === '1'; } catch (e) {}
-    if (embed || window.I18N_NO_TOGGLE || document.getElementById('i18nToggle')) return;
-    var st = document.createElement('style');
-    st.textContent = '#i18nToggle{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));z-index:9999;display:flex;gap:2px;padding:3px;border-radius:999px;' +
-      'background:rgba(20,27,36,.86);border:1px solid rgba(255,255,255,.14);box-shadow:0 4px 14px rgba(0,0,0,.18);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font:500 12.5px/1 system-ui,sans-serif}' +
-      '#i18nToggle button{border:0;background:none;color:#b9cadb;padding:6px 10px;border-radius:999px;cursor:pointer;font:inherit}' +
-      '#i18nToggle button[aria-pressed="true"]{background:#4a9ee8;color:#0a1a2c}' +
-      '#i18nToggle button:focus-visible{outline:2px solid #4a9ee8;outline-offset:1px}@media print{#i18nToggle{display:none}}';
-    document.head.appendChild(st);
-    var box = document.createElement('div');
-    box.id = 'i18nToggle'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', 'Language / 語言'); box.setAttribute('data-no-i18n', '');
-    [['zh', '中文'], ['en', 'EN']].forEach(function (p) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.textContent = p[1]; b.lang = p[0] === 'zh' ? 'zh-Hant' : 'en';
-      b.setAttribute('aria-pressed', String(lang === p[0]));
-      b.addEventListener('click', function () { setLang(p[0]); });
-      box.appendChild(b);
-    });
-    document.body.appendChild(box);
+    if (embed || window.I18N_NO_TOGGLE || document.querySelector('.i18s.float')) return;
+    settings(null);
   }
 
   window.I18N = {
@@ -180,6 +216,7 @@
     pick: function (zh, en) { return lang === 'en' ? en : zh; },
     set: setLang,
     translate: translateNow,
+    settings: settings,
     browserLang: fromNavigator
   };
 
