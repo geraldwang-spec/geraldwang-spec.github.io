@@ -3,6 +3,7 @@
 <head>
 <script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
 <meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/battery.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>電池續航計算</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -173,7 +174,7 @@ document.querySelectorAll('#stepSeg button').forEach(b=>b.addEventListener('clic
 document.querySelectorAll('[data-cap]').forEach(b=>b.addEventListener('click',()=>{$('cap').value=b.dataset.cap;calc();}));
 document.querySelectorAll('[data-bat]').forEach(b=>b.addEventListener('click',()=>{const [f,c,m]=b.dataset.bat.split(',');$('vf').value=f;$('vc').value=c;setMode(m);calc();}));
 ['cap','cur','vf','vc','eff'].forEach(id=>$(id).addEventListener('input',calc));$('cu').addEventListener('change',calc);
-$('cp').addEventListener('click',e=>copyText(['電量%\t電壓V\t剩餘容量mAh\t剩餘時間(小時)\t已使用時間(小時)',...table.map(r=>[r[0],+r[1].toFixed(4),+r[2].toFixed(2),+r[3].toFixed(4),+r[4].toFixed(4)].join('\t'))].join('\n'),e.target));
+$('cp').addEventListener('click',e=>copyText([I18N.pick('電量%\t電壓V\t剩餘容量mAh\t剩餘時間(小時)\t已使用時間(小時)','Charge %\tVoltage V\tRemaining mAh\tRemaining time (h)\tElapsed time (h)'),...table.map(r=>[r[0],+r[1].toFixed(4),+r[2].toFixed(2),+r[3].toFixed(4),+r[4].toFixed(4)].join('\t'))].join('\n'),e.target));
 calc();
 </script>
 </body>

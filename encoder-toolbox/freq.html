@@ -3,6 +3,7 @@
 <head>
 <script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
 <meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/freq.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>頻率 Trim 與 PPM</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -86,7 +87,7 @@ function calcRows(){
 $('rows').addEventListener('input',e=>{const t=e.target;if(t.dataset.i==null)return;rows[+t.dataset.i][+t.dataset.k]=parseFloat(t.value);calcRows();});
 $('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d==null)return;rows.splice(+d,1);drawRows();});
 $('add').addEventListener('click',()=>{const l=rows[rows.length-1]||[0,0];rows.push([l[0],l[1]]);drawRows();});
-$('cp').addEventListener('click',e=>copyText(['實際頻率\t標準頻率\tPPM',...rows.map(r=>`${r[0]}\t${r[1]}\t${(ppmOf(r)).toFixed(4)}`)].join('\n'),e.target));
+$('cp').addEventListener('click',e=>copyText([I18N.pick('實際頻率\t標準頻率\tPPM','Actual freq\tReference freq\tPPM'),...rows.map(r=>`${r[0]}\t${r[1]}\t${(ppmOf(r)).toFixed(4)}`)].join('\n'),e.target));
 $('lim').addEventListener('input',calcRows);
 ['fm','ft'].forEach(id=>$(id).addEventListener('input',trim));
 document.querySelectorAll('[data-ft]').forEach(b=>b.addEventListener('click',()=>{$('ft').value=b.dataset.ft;trim();}));

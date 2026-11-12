@@ -92,6 +92,10 @@ nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap
 .crumbs .sep{color:var(--line-2)}
 .crumbs .cur{color:var(--ink);overflow:hidden;text-overflow:ellipsis}
 .top .act{margin-left:auto;display:flex;gap:8px}
+.langsw{display:flex;gap:2px;padding:3px;border:1px solid var(--line-2);border-radius:8px;flex:none}
+.langsw button{border:0;background:none;color:var(--muted);height:28px;padding:0 9px;border-radius:5px;cursor:pointer;font-size:13px;transition:background .25s var(--silk),color .25s var(--silk)}
+.langsw button:hover{color:var(--ink)}
+.langsw button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
 .btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);background:none;color:var(--text);
   font-size:14px;text-decoration:none;cursor:pointer;white-space:nowrap;transition:border-color .25s var(--silk),color .25s var(--silk),background .25s var(--silk)}
 .btn:hover{border-color:var(--accent);color:var(--ink)}
@@ -159,35 +163,40 @@ nav ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:25;background:var(--bg)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-<script src="catalog.js?v=20261110-0950"></script>
+<link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/?lang=zh">
+<link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/?lang=en">
+<link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/">
+<script>window.I18N_NO_TOGGLE=true;</script><script src="i18n.js?v=20261112"></script>
+<script src="catalog.js?v=20261112-1100"></script>
 </head>
 <body>
 <div class="app" id="app">
-  <aside class="rail" id="rail" aria-label="工具選單">
+  <aside class="rail" id="rail" aria-label="工具選單" data-k-aria="railLabel">
     <div class="railhead">
       <a class="brand" href="#home" id="brand">
         <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#0a1a2c" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v3M20 12h-3M12 20v-3M4 12h3"/></svg></span>
-        <span><b>工程師工具站</b><small>硬體 · 韌體 · 軟體</small></span>
+        <span><b data-k="site">工程師工具站</b><small data-k="tagline">硬體 · 韌體 · 軟體</small></span>
       </a>
-      <button class="collapse" id="collapseBtn" type="button" aria-label="收合側邊欄" title="收合側邊欄"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M16 10l-2 2 2 2"/></svg></button>
+      <button class="collapse" id="collapseBtn" type="button" aria-label="收合側邊欄" title="收合側邊欄" data-k-aria="collapse" data-k-title="collapse"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M16 10l-2 2 2 2"/></svg></button>
     </div>
     <nav>
-      <div class="navlbl">總覽</div>
-      <ul><li><a class="item" href="#home" data-go="home" id="navHome"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl">所有工具</span></a></li></ul>
+      <div class="navlbl" data-k="overview">總覽</div>
+      <ul><li><a class="item" href="#home" data-go="home" id="navHome"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span class="lbl" data-k="allTools">所有工具</span></a></li></ul>
     </nav>
     <nav>
-      <div class="navlbl">大項</div>
+      <div class="navlbl" data-k="categories">大項</div>
       <ul id="navCats"></ul>
     </nav>
-    <div class="railfoot">新增大項或工具：編輯 <code>catalog.js</code>，左側選單和卡片會自動出現。</div>
+    <div class="railfoot" data-k-html="railfoot">新增大項或工具：編輯 <code>catalog.js</code>，左側選單和卡片會自動出現。</div>
   </aside>
-  <button class="scrim" id="scrim" aria-label="關閉選單"></button>
+  <button class="scrim" id="scrim" aria-label="關閉選單" data-k-aria="closeMenu"></button>
 
   <div class="main">
     <header class="top">
-      <button class="menu" id="menuBtn" aria-label="開啟選單" aria-controls="rail" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <button class="menu" id="menuBtn" aria-label="開啟選單" data-k-aria="openMenu" aria-controls="rail" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="crumbs" id="crumbs"></div>
       <div class="act" id="topAct"></div>
+      <div class="langsw" id="langSw" role="group" aria-label="Language / 語言"><button type="button" data-lang="zh" lang="zh-Hant">中文</button><button type="button" data-lang="en" lang="en">EN</button></div>
     </header>
     <div id="content"></div>
   </div>
@@ -195,7 +204,40 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
 <script>
 (function(){
-  const CATALOG = window.CATALOG || [];
+  const LANG = (window.I18N && I18N.lang) || 'zh', EN = LANG === 'en';
+  const CAT_EN = window.CATALOG_EN || {};
+  // 依語言取大項／工具的欄位：英文沒寫就用中文
+  const L = (key, obj, f) => (EN && CAT_EN[key] && CAT_EN[key][f] != null) ? CAT_EN[key][f] : obj[f];
+  const CATALOG = (window.CATALOG || []).map(c => Object.assign({}, c, {
+    name: L(c.id, c, 'name'), summary: L(c.id, c, 'summary'),
+    tools: c.tools.map(t => { const k = c.id + '/' + t.id; return Object.assign({}, t, { name: L(k, t, 'name'), summary: L(k, t, 'summary'), tags: L(k, t, 'tags'), points: L(k, t, 'points') }); })
+  }));
+  const STR = {
+    zh: { site:'工程師工具站', tagline:'硬體 · 韌體 · 軟體', railLabel:'工具選單', collapse:'收合側邊欄', expand:'展開側邊欄', overview:'總覽', allTools:'所有工具', categories:'大項',
+      railfoot:'新增大項或工具：編輯 <code>catalog.js</code>，左側選單和卡片會自動出現。', closeMenu:'關閉選單', openMenu:'開啟選單',
+      openTool:'開啟工具', newTab:'新分頁', openNewTab:'在新分頁開啟', back:'返回', backTo:n=>'回到'+n, addTool:'新增工具',
+      addToolHint:'在 <code>catalog.js</code> 這個大項的 <code>tools</code> 裡加一筆，就會出現在這裡和左側選單。',
+      heroText:'把做硬體、韌體和軟體時常用的計算與學習工具放在同一個地方。左側選擇大項，裡面列出所有工具，點了直接在這裡使用。',
+      nCats:n=>`<b>${n}</b>個大項`, nTools:n=>`<b>${n}</b>個工具`, catOverview:'大項總覽 →', category:'大項', tools:'工具',
+      notFound:'找不到這個工具', notFoundTitle:n=>`「${n}」不在目前的工具目錄裡`, notFoundText:'可能是剛新增的工具，而瀏覽器還在用舊的目錄。重新整理一次通常就會出現。', reload:'重新整理' },
+    en: { site:"Engineer's Toolkit", tagline:'Hardware · Firmware · Software', railLabel:'Tool menu', collapse:'Collapse sidebar', expand:'Expand sidebar', overview:'Overview', allTools:'All tools', categories:'Categories',
+      railfoot:'To add a category or tool, edit <code>catalog.js</code> — the menu and cards update automatically.', closeMenu:'Close menu', openMenu:'Open menu',
+      openTool:'Open tool', newTab:'New tab', openNewTab:'Open in new tab', back:'Back', backTo:n=>'Back to '+n, addTool:'Add a tool',
+      addToolHint:'Add an entry to this category\'s <code>tools</code> in <code>catalog.js</code> and it will show up here and in the menu.',
+      heroText:'Calculation and learning tools I use for hardware, firmware and software work, all in one place. Pick a category on the left to see its tools, and use them right here.',
+      nCats:n=>`<b>${n}</b>${n===1?'category':'categories'}`, nTools:n=>`<b>${n}</b>${n===1?'tool':'tools'}`, catOverview:'Category overview →', category:'Category', tools:'Tools',
+      notFound:'Tool not found', notFoundTitle:n=>`"${n}" is not in the current tool list`, notFoundText:'It may be a newly added tool while your browser still has the old list cached. Reloading usually fixes it.', reload:'Reload' }
+  };
+  const S = STR[EN ? 'en' : 'zh'];
+  document.querySelectorAll('[data-k]').forEach(e => e.textContent = S[e.dataset.k]);
+  document.querySelectorAll('[data-k-html]').forEach(e => e.innerHTML = S[e.dataset.kHtml]);
+  document.querySelectorAll('[data-k-aria]').forEach(e => e.setAttribute('aria-label', S[e.dataset.kAria]));
+  document.querySelectorAll('[data-k-title]').forEach(e => e.title = S[e.dataset.kTitle]);
+  if (EN) { const md = document.querySelector('meta[name="description"]'); if (md) md.content = 'Learning and calculation tools for hardware, firmware and software work: encoders, ADC, Nonius absolute angle, bench calculations, an ER-diagram sketchboard, and notes on a bedside e-paper system.'; }
+  document.querySelectorAll('#langSw button').forEach(b => {
+    b.setAttribute('aria-pressed', String(b.dataset.lang === LANG));
+    b.addEventListener('click', () => { if (window.I18N) I18N.set(b.dataset.lang); });
+  });
   const ICONS = {
     encoder:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 3v2M21 12h-2M12 21v-2M3 12h2M18.4 5.6l-1.4 1.4M18.4 18.4l-1.4-1.4M5.6 18.4l1.4-1.4M5.6 5.6l1.4 1.4"/>',
     chip:'<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
@@ -221,7 +263,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
       <li>
         <button class="item cat" type="button" data-cat="${esc(c.id)}" aria-expanded="${open.has(c.id)}">${ico(c.icon)}<span class="lbl">${esc(c.name)}</span><span class="count">${c.tools.length}</span>${chev}</button>
         <ul class="sub" ${open.has(c.id)?'':'hidden'}>
-          <li><a class="item" href="#${esc(c.id)}" data-nav="${esc(c.id)}"><span class="dot"></span><span class="lbl">總覽</span></a></li>
+          <li><a class="item" href="#${esc(c.id)}" data-nav="${esc(c.id)}"><span class="dot"></span><span class="lbl">${S.overview}</span></a></li>
           ${c.tools.map(t=>`<li><a class="item" href="#${esc(c.id)}/${esc(t.id)}" data-nav="${esc(c.id)}/${esc(t.id)}"><span class="dot"></span><span class="lbl">${esc(t.name)}</span></a></li>`).join('')}
         </ul>
       </li>`).join('');
@@ -241,59 +283,60 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
       <h3>${esc(t.name)}</h3>
       <p>${esc(t.summary||'')}</p>
       ${t.points&&t.points.length?`<ul>${t.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`:''}
-      <div class="acts"><a class="btn pri" href="#${esc(c.id)}/${esc(t.id)}">開啟工具</a><a class="btn" href="${esc(t.href)}" target="_blank" rel="noopener">${ext}新分頁</a></div>
+      <div class="acts"><a class="btn pri" href="#${esc(c.id)}/${esc(t.id)}">${S.openTool}</a><a class="btn" href="${esc(withLang(t.href))}" target="_blank" rel="noopener">${ext}${S.newTab}</a></div>
     </article>`;
   }
-  const ghost=`<div class="card ghost"><h3 style="font-size:16px;color:var(--text)">新增工具</h3><p>在 <code>catalog.js</code> 這個大項的 <code>tools</code> 裡加一筆，就會出現在這裡和左側選單。</p></div>`;
+  const ghost=`<div class="card ghost"><h3 style="font-size:16px;color:var(--text)">${S.addTool}</h3><p>${S.addToolHint}</p></div>`;
+  const withLang=h=>h+(h.includes('?')?'&':'?')+'lang='+LANG;
 
   function renderHome(){
-    $('crumbs').innerHTML=`<span class="cur">所有工具</span>`;$('topAct').innerHTML='';
+    $('crumbs').innerHTML=`<span class="cur">${S.allTools}</span>`;$('topAct').innerHTML='';
     $('content').innerHTML=`<div class="view">
       <section class="hero">
         <span class="eyebrow">ENGINEER'S TOOLKIT</span>
-        <h1>工程師工具站</h1>
-        <p>把做硬體、韌體和軟體時常用的計算與學習工具放在同一個地方。左側選擇大項，裡面列出所有工具，點了直接在這裡使用。</p>
-        <div class="stats"><span class="stat"><b>${CATALOG.length}</b>個大項</span><span class="stat"><b>${total}</b>個工具</span></div>
+        <h1>${S.site}</h1>
+        <p>${S.heroText}</p>
+        <div class="stats"><span class="stat">${S.nCats(CATALOG.length)}</span><span class="stat">${S.nTools(total)}</span></div>
       </section>
       ${CATALOG.map(c=>`<section class="sect">
-        <div class="secthead"><h2>${esc(c.name)}</h2><a href="#${esc(c.id)}">大項總覽 →</a></div>
+        <div class="secthead"><h2>${esc(c.name)}</h2><a href="#${esc(c.id)}">${S.catOverview}</a></div>
         <div class="cards">${c.tools.map(t=>toolCard(c,t)).join('')}</div>
       </section>`).join('')}
     </div>`;
   }
 
   function renderCat(c){
-    $('crumbs').innerHTML=`<a href="#home">所有工具</a><span class="sep">/</span><span class="cur">${esc(c.name)}</span>`;$('topAct').innerHTML='';
+    $('crumbs').innerHTML=`<a href="#home">${S.allTools}</a><span class="sep">/</span><span class="cur">${esc(c.name)}</span>`;$('topAct').innerHTML='';
     $('content').innerHTML=`<div class="view">
       <section class="hero">
-        <span class="eyebrow">大項</span>
+        <span class="eyebrow">${S.category}</span>
         <h1>${esc(c.name)}</h1>
         <p>${esc(c.summary||'')}</p>
-        <div class="stats"><span class="stat"><b>${c.tools.length}</b>個工具</span></div>
+        <div class="stats"><span class="stat">${S.nTools(c.tools.length)}</span></div>
       </section>
       <section class="sect">
-        <div class="secthead"><h2>工具</h2></div>
+        <div class="secthead"><h2>${S.tools}</h2></div>
         <div class="cards">${c.tools.map(t=>toolCard(c,t)).join('')}${ghost}</div>
       </section>
     </div>`;
   }
 
   function renderTool(c,t){
-    $('crumbs').innerHTML=`<a href="#home">所有工具</a><span class="sep">/</span><a href="#${esc(c.id)}">${esc(c.name)}</a><span class="sep">/</span><span class="cur">${esc(t.name)}</span>`;
-    $('topAct').innerHTML=`<a class="btn" href="#${esc(c.id)}" aria-label="回到${esc(c.name)}">${back}<span class="txt">返回</span></a><a class="btn" href="${esc(t.href)}" target="_blank" rel="noopener" aria-label="在新分頁開啟">${ext}<span class="txt">新分頁</span></a>`;
-    const src=t.href+(t.href.includes('?')?'&':'?')+'embed=1&theme=dark';
+    $('crumbs').innerHTML=`<a href="#home">${S.allTools}</a><span class="sep">/</span><a href="#${esc(c.id)}">${esc(c.name)}</a><span class="sep">/</span><span class="cur">${esc(t.name)}</span>`;
+    $('topAct').innerHTML=`<a class="btn" href="#${esc(c.id)}" aria-label="${esc(S.backTo(c.name))}">${back}<span class="txt">${S.back}</span></a><a class="btn" href="${esc(withLang(t.href))}" target="_blank" rel="noopener" aria-label="${S.openNewTab}">${ext}<span class="txt">${S.newTab}</span></a>`;
+    const src=withLang(t.href)+'&embed=1&theme=dark';
     const fr=$('content').querySelector('iframe');
     if(fr&&fr.dataset.tool===c.id+'/'+t.id)return;
     $('content').innerHTML=`<div class="viewer"><iframe src="${esc(src)}" title="${esc(t.name)}" data-tool="${esc(c.id)}/${esc(t.id)}"></iframe></div>`;
   }
 
   function renderMissing(c,tool){
-    $('crumbs').innerHTML=`<a href="#home">所有工具</a><span class="sep">/</span><a href="#${esc(c.id)}">${esc(c.name)}</a><span class="sep">/</span><span class="cur">${esc(tool)}</span>`;$('topAct').innerHTML='';
+    $('crumbs').innerHTML=`<a href="#home">${S.allTools}</a><span class="sep">/</span><a href="#${esc(c.id)}">${esc(c.name)}</a><span class="sep">/</span><span class="cur">${esc(tool)}</span>`;$('topAct').innerHTML='';
     $('content').innerHTML=`<div class="view"><section class="hero">
-      <span class="eyebrow">找不到這個工具</span>
-      <h1>「${esc(tool)}」不在目前的工具目錄裡</h1>
-      <p>可能是剛新增的工具，而瀏覽器還在用舊的目錄。重新整理一次通常就會出現。</p>
-      <div class="stats"><button class="btn pri" type="button" id="reloadBtn">重新整理</button><a class="btn" href="#${esc(c.id)}">回到${esc(c.name)}</a></div>
+      <span class="eyebrow">${S.notFound}</span>
+      <h1>${esc(S.notFoundTitle(tool))}</h1>
+      <p>${S.notFoundText}</p>
+      <div class="stats"><button class="btn pri" type="button" id="reloadBtn">${S.reload}</button><a class="btn" href="#${esc(c.id)}">${esc(S.backTo(c.name))}</a></div>
     </section></div>`;
     $('reloadBtn').addEventListener('click',()=>location.reload());
   }
@@ -313,7 +356,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     document.querySelectorAll('[data-nav]').forEach(a=>a.setAttribute('aria-current',a.dataset.nav===key));
     document.querySelectorAll('.cat').forEach(b=>b.setAttribute('aria-current',!t&&c&&b.dataset.cat===c.id?'true':'false'));
     $('navHome').setAttribute('aria-current',key==='home');
-    document.title=(t?t.name+' · ':c?c.name+' · ':'')+'工程師工具站';
+    document.title=(t?t.name+' · ':c?c.name+' · ':'')+S.site;
     closeMenu();
     if(!t)window.scrollTo(0,0);
   }
@@ -326,8 +369,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   const desk=window.matchMedia('(min-width:901px)'),brand=$('brand'),colBtn=$('collapseBtn');
   function setCollapsed(on){
     app.classList.toggle('collapsed',on);
-    brand.setAttribute('aria-label',on?'展開側邊欄':'工程師工具站');
-    brand.title=on?'展開側邊欄':'';
+    brand.setAttribute('aria-label',on?S.expand:S.site);
+    brand.title=on?S.expand:'';
     try{localStorage.setItem('railCollapsed',on?'1':'0');}catch(e){}
   }
   try{if(localStorage.getItem('railCollapsed')==='1')setCollapsed(true);}catch(e){}

@@ -3,6 +3,7 @@
 <head>
 <script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
 <meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/roi.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>取樣範圍座標計算</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -40,7 +41,8 @@
 <script>
 const COLS=['name','w','h','size','rx','ry','nl','nh','fl','fh'];
 const mk=(name,w,h,size,rx,ry,nl=30,nh=200,fl=30,fh=200)=>({name,w,h,size,rx,ry,nl,nh,fl,fh});
-const STD=()=>[mk('0-中間座標',1920,1080,100,.5,.5,30,200,35,200),mk('1-左上座標',1920,1080,100,.2,.2),mk('2-右上座標',1920,1080,100,.8,.2),mk('3-左下座標',1920,1080,100,.2,.8),mk('4-右下座標',1920,1080,100,.8,.8)];
+const N=(zh,en)=>I18N.pick(zh,en);
+const STD=()=>[mk(N('0-中間座標','0-Centre'),1920,1080,100,.5,.5,30,200,35,200),mk(N('1-左上座標','1-Top left'),1920,1080,100,.2,.2),mk(N('2-右上座標','2-Top right'),1920,1080,100,.8,.2),mk(N('3-左下座標','3-Bottom left'),1920,1080,100,.2,.8),mk(N('4-右下座標','4-Bottom right'),1920,1080,100,.8,.8)];
 let rows=STD();
 let sel=0;
 function geo(r){const cx=r.w*r.rx,cy=r.h*r.ry;return {cx,cy,x:cx-r.size/2,y:cy-r.size/2};}
@@ -82,9 +84,9 @@ $('rows').addEventListener('input',e=>{const t=e.target,i=t.dataset.i;if(i==null
 $('rows').addEventListener('focusin',e=>{const tr=e.target.closest('tr');if(!tr)return;const i=+tr.dataset.row;if(i!==sel){sel=i;document.querySelectorAll('#rows tr').forEach(x=>x.classList.toggle('sel',+x.dataset.row===sel));preview();}});
 $('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!=null){rows.splice(+d,1);sel=Math.min(sel,rows.length-1);drawRows();return;}
   const tr=e.target.closest('tr');if(tr){sel=+tr.dataset.row;document.querySelectorAll('#rows tr').forEach(x=>x.classList.toggle('sel',+x.dataset.row===sel));preview();}});
-$('add').addEventListener('click',()=>{const l=rows[rows.length-1]||mk('',1920,1080,100,.5,.5);rows.push({...l,name:rows.length+'-新座標'});sel=rows.length-1;drawRows();});
+$('add').addEventListener('click',()=>{const l=rows[rows.length-1]||mk('',1920,1080,100,.5,.5);rows.push({...l,name:rows.length+I18N.pick('-新座標','-New')});sel=rows.length-1;drawRows();});
 $('std').addEventListener('click',()=>{rows=STD();sel=0;drawRows();});
-$('cp').addEventListener('click',e=>copyText(['名稱\t長\t寬\t取樣範圍\tX比例\tY比例\t中間點X\t中間點Y\t左上X\t左上Y\t近焦下限\t近焦上限\t遠焦下限\t遠焦上限',
+$('cp').addEventListener('click',e=>copyText([I18N.pick('名稱\t長\t寬\t取樣範圍\tX比例\tY比例\t中間點X\t中間點Y\t左上X\t左上Y\t近焦下限\t近焦上限\t遠焦下限\t遠焦上限','Name\tLength\tWidth\tROI size\tX ratio\tY ratio\tCentre X\tCentre Y\tTop-left X\tTop-left Y\tNear min\tNear max\tFar min\tFar max'),
   ...rows.map(r=>{const g=geo(r);return [r.name,r.w,r.h,r.size,r.rx,r.ry,+g.cx.toFixed(3),+g.cy.toFixed(3),+g.x.toFixed(3),+g.y.toFixed(3),r.nl,r.nh,r.fl,r.fh].join('\t');})].join('\n'),e.target));
 drawRows();
 </script>

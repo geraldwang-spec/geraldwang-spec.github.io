@@ -3,6 +3,7 @@
 <head>
 <script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
 <meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/cable.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RF Cable Loss 計算</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -101,7 +102,7 @@ $('add').addEventListener('click',()=>{rows.push([NaN,NaN,NaN]);drawRows();});
 ['len','f','kc','asm'].forEach(id=>$(id).addEventListener('input',calc));
 $('perRow').addEventListener('change',calc);
 document.querySelectorAll('[data-f]').forEach(b=>b.addEventListener('click',()=>{$('f').value=b.dataset.f;calc();}));
-$('cp').addEventListener('click',e=>copyText(['頻率GHz\t衰減dB/m\t功率W\t線材loss\t接頭1+組裝1\t接頭1+組裝2\t接頭2+組裝1\t接頭2+組裝2',...table.map(r=>r.map(x=>isNaN(x)?'':+x.toFixed(4)).join('\t'))].join('\n'),e.target));
+$('cp').addEventListener('click',e=>copyText([I18N.pick('頻率GHz\t衰減dB/m\t功率W\t線材loss\t接頭1+組裝1\t接頭1+組裝2\t接頭2+組裝1\t接頭2+組裝2','Freq GHz\tAtten dB/m\tPower W\tCable loss\tConn1+Asm1\tConn1+Asm2\tConn2+Asm1\tConn2+Asm2'),...table.map(r=>r.map(x=>isNaN(x)?'':+x.toFixed(4)).join('\t'))].join('\n'),e.target));
 drawRows();
 </script>
 </body>

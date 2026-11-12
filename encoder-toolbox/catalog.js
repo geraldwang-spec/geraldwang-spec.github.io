@@ -182,3 +182,126 @@ window.CATALOG = [
     ]
   }
 ];
+
+/*
+ * 英文版目錄（語言切到 English 時使用）。
+ * 鍵："大項id" 或 "大項id/工具id"；沒寫的欄位會沿用上面的中文。
+ */
+window.CATALOG_EN = {
+  "encoder": {
+    name: "Encoder Toolbox",
+    summary: "Learning and calculation tools for magnetic encoders in robot joints: from analog Hall-sensor signals and ADC sampling to absolute angle from a dual-track Nonius design."
+  },
+  "encoder/sensors": {
+    name: "Read Head & Track Sensors",
+    summary: "Unroll the magnetic ring and see how the 8 Hall sensors are laid out, what each one reads, and how pairs are subtracted into the ADC's 4 channels.",
+    tags: ["8 sensors", "Differential", "Peak at S pole"],
+    points: ["Animated read head over the main and Nonius tracks", "Live sin+ / sin− / cos+ / cos− readings", "Readings at S centre, N centre and pole boundary"]
+  },
+  "encoder/atan2": {
+    name: "atan2 Unit Circle",
+    summary: "Drag a point on the unit circle to see how atan2 turns sin and cos into an angle, and where atan(s ÷ c) goes wrong.",
+    tags: ["atan2(s, c)", "Quadrants", "−180 ~ 180°"],
+    points: ["Draggable unit circle with live angle", "atan vs atan2, and the divide-by-zero case", "Angle straight from ADC readings, with C example"]
+  },
+  "encoder/nonius": {
+    name: "Nonius Absolute Angle",
+    summary: "A dual-track design from ADC readings all the way to absolute angle, with theoretical and measured values side by side.",
+    tags: ["32/31 · 64/63", "sin / cos", "atan2 → θ"],
+    points: ["Rotating ring animation, ADC scope and Lissajous plot", "Add noise, offset and gain error to watch k go wrong", "MCU firmware flow and C example"]
+  },
+  "encoder/capacitive": {
+    name: "Capacitive Encoder",
+    summary: "Electric field instead of magnets: how four-phase excitation builds a signal whose phase follows the angle, how synchronous demodulation yields sin and cos, and how coarse / fine channels combine into absolute angle.",
+    tags: ["Four-phase excitation", "Synchronous demod", "Coarse / fine"],
+    points: ["Animated coupling between rotor pattern and transmit electrodes", "Receive-signal phase lag = rotor angle", "Coarse / fine vs Nonius, and vs Hall sensing"]
+  },
+  "encoder/adc": {
+    name: "ADC Voltage Converter",
+    summary: "Voltage to ADC code and code back to voltage: see the size of one step and the quantization error.",
+    tags: ["8 ~ 16 bit", "Vin · Vref", "LSB"],
+    points: ["Binary, hex, range ruler and transfer staircase", "Clipping beyond full scale", "Centre value of a ratiometric Hall sensor"]
+  },
+  "bench": {
+    name: "Bench Calculations",
+    summary: "Everyday calculations for hardware validation and firmware work: frequency error, voltage tolerance, measurement statistics, RF cable loss, image ROI coordinates, MCU timer settings and battery life."
+  },
+  "bench/freq": {
+    name: "Frequency Trim & PPM",
+    summary: "How far the measured frequency is from target, converted to a 2^20-based trim value, plus PPM error over multiple measurements.",
+    tags: ["trim value", "PPM", "2^20"],
+    points: ["trim = (measured ÷ target − 1) × 2^20", "PPM for many frequencies at once", "Set a ±ppm spec for automatic PASS / FAIL"]
+  },
+  "bench/voltage": {
+    name: "Voltage Tolerance",
+    summary: "High / low limits of a rail at ±%, and the max / min range when the voltage drops to a given percentage.",
+    tags: ["±5%", "High / Low", "Voltage drop"],
+    points: ["Limits and formula for one voltage", "Several rails in one table", "Drop-percentage table you can copy into Excel"]
+  },
+  "bench/stats": {
+    name: "Measurement Stats 3σ",
+    summary: "Paste a list of measurements to get max, min, mean, standard deviation and mean ± 3σ limits.",
+    tags: ["STDEV", "±3σ", "Outliers"],
+    points: ["Paste a whole column straight from Excel", "Adjustable k, with out-of-range points flagged", "Scatter plot of every measurement"]
+  },
+  "bench/cable": {
+    name: "RF Cable Loss",
+    summary: "Total loss at each frequency from cable attenuation spec, length, connectors and assembly loss.",
+    tags: ["dB/m", "Connector 0.06√f", "Volken cables"],
+    points: ["Four combinations: 1–2 connectors × 1–2 assemblies", "Any frequency, interpolated from the spec table", "Editable spec table, add your own rows"]
+  },
+  "bench/roi": {
+    name: "ROI Coordinates",
+    summary: "Square sampling boxes on an image: centre and top-left coordinates from resolution, box size and position ratio.",
+    tags: ["1920×1080", "ROI", "Top-left"],
+    points: ["Five boxes: centre and four corners", "Frame preview, boxes outside the frame flagged", "Near / far focus limits recorded together"]
+  },
+  "bench/pit": {
+    name: "KL27 PIT LDVAL",
+    summary: "How often the NXP KL27 PIT timer should fire and what to put in LDVAL; or work back from LDVAL to the period.",
+    tags: ["KL27", "PIT", "LDVAL hex"],
+    points: ["LDVAL = period × clock − 1", "Actual period and error after rounding", "C initialization example"]
+  },
+  "bench/battery": {
+    name: "Battery Life",
+    summary: "Enter capacity, current draw, full and cut-off voltage to get run time, plus the voltage for each % of charge.",
+    tags: ["mAh", "Run time", "Charge % ↔ voltage"],
+    points: ["Capacity ÷ current = run time", "Voltage and remaining time at 1% / 5% / 10% steps", "Linear or Li-ion discharge curve"]
+  },
+  "dev": {
+    name: "Software Design",
+    summary: "Small tools for planning a system: sketch the tables, relationships and ideas before you write code."
+  },
+  "dev/design-board": {
+    name: "Design Sketchboard",
+    summary: "Edit tables, columns and relationships in a form and watch the ER diagram draw itself; also mind maps and discussion notes.",
+    tags: ["ER diagram", "Mind map", "Mermaid"],
+    points: ["PK / FK / UK, one-to-many and many-to-many", "Wheel to zoom, Space to pan; download PNG / SVG / Mermaid", "Saved in the browser, export / import JSON"]
+  },
+  "learn": {
+    name: "Learning",
+    summary: "Interactive notes from studying new topics: how a system is layered, how data flows and how the numbers work out — click around to understand it."
+  },
+  "learn/epaper-arch": {
+    name: "Bedside E-paper Architecture",
+    summary: "Four-layer architecture from the hospital HIS to a bedside RTL8720DN e-paper display. Click blocks and arrows to see responsibilities, protocols, open questions and sources.",
+    tags: ["RTL8720DN", "HL7 / FHIR", "Wi‑Fi"],
+    points: ["Four layers and the links between them (standard / custom)", "Image pipeline, data size and SPI transfer-time estimates", "Checklist grouped by who to ask, plus references"]
+  },
+  "learn/epaper-bits": {
+    name: "Bitmap Encoding Demo",
+    summary: "How a screen becomes the bytes sent to an e-paper panel: set width, height and bits per pixel, then hover any pixel to see which bit of which byte it lands in.",
+    tags: ["1 / 2 / 4 bpp", "960×640", "MSB first"],
+    points: ["Black/white, 4-colour and 16-level grey encodings with polarity switch", "Bed-card example: laid-out text turned into a bitmap", "Padding bits, bytes per row, and copy the full data"]
+  },
+  "life": {
+    name: "Everyday",
+    summary: "Small tools for daily life."
+  },
+  "life/bus": {
+    name: "Direct Bus Finder",
+    summary: "Enter where you get on and off to find bus routes that run directly between stops within walking distance of each, with timetables for a chosen date and live arrivals.",
+    tags: ["TDX", "New Taipei / Taipei / intercity", "Nearby stops"],
+    points: ["Finds the place by name and includes stops within 150–800 m walk", "Drops buses going the wrong way; shows boarding / alighting stops and walk distance", "Trips for the chosen weekday; live arrivals for today"]
+  }
+};

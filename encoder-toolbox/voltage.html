@@ -3,6 +3,7 @@
 <head>
 <script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
 <meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/voltage.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>電壓容差計算</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -80,7 +81,7 @@ document.querySelectorAll('[data-t]').forEach(b=>b.addEventListener('click',()=>
 ['v','tol'].forEach(id=>$(id).addEventListener('input',one));
 $('railList').addEventListener('input',rails);
 ['sv','st','steps'].forEach(id=>$(id).addEventListener('input',steps));
-$('cp').addEventListener('click',e=>copyText(['下降%\t電壓\tmax\tmin',...stepData.map(r=>r.map(x=>+x.toFixed(6)).join('\t'))].join('\n'),e.target));
+$('cp').addEventListener('click',e=>copyText([I18N.pick('下降%\t電壓\tmax\tmin','Drop %\tVoltage\tmax\tmin'),...stepData.map(r=>r.map(x=>+x.toFixed(6)).join('\t'))].join('\n'),e.target));
 one();steps();
 </script>
 </body>

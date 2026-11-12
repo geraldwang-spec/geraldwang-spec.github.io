@@ -4,6 +4,7 @@
 <script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
 <style>.embed .backlink{display:none!important}</style>
 <meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/epaper-bits.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>點陣編碼示範</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -415,21 +416,21 @@ img { max-width: 100%; }
   }
   function presetCard() {
     const c = document.createElement("canvas"); c.width = W; c.height = H;
-    const g = c.getContext("2d"), k = Math.min(W / 960, H / 640), F = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+    const g = c.getContext("2d"), k = Math.min(W / 960, H / 640), F = '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif'; // 英文時也用同一組字型
     const pad = 36 * k;
     g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
     g.fillStyle = "#000"; g.fillRect(0, 0, W, 120 * k);
     g.fillStyle = "#fff"; g.textBaseline = "middle";
     g.font = `700 ${78 * k}px ${F}`; g.fillText("7A‑0302", pad, 62 * k);
-    g.font = `500 ${36 * k}px ${F}`; g.textAlign = "right"; g.fillText("第 7 病房 A 區", W - pad, 62 * k); g.textAlign = "left";
+    g.font = `500 ${36 * k}px ${F}`; g.textAlign = "right"; g.fillText(I18N.pick("第 7 病房 A 區", "Ward 7 · Zone A"), W - pad, 62 * k); g.textAlign = "left";
     g.fillStyle = "#000";
-    g.font = `700 ${100 * k}px ${F}`; g.fillText("王○明", pad, 225 * k);
-    g.font = `500 ${44 * k}px ${F}`; g.fillText("男 · 68 歲", pad + 330 * k, 238 * k);
+    g.font = `700 ${100 * k}px ${F}`; g.fillText(I18N.pick("王○明", "Wang"), pad, 225 * k);
+    g.font = `500 ${44 * k}px ${F}`; g.fillText(I18N.pick("男 · 68 歲", "M · 68 y"), pad + 330 * k, 238 * k);
     g.font = `400 ${40 * k}px ${F}`;
-    g.fillText("主治醫師　陳志明", pad, 340 * k);
-    g.fillText("責任護理師　林佳慧", pad, 404 * k);
-    g.fillText("入院日　2026/11/02", pad, 468 * k);
-    const tags = [["禁食", 3], ["跌倒高風險", 2], ["過敏：盤尼西林", 3]];
+    g.fillText(I18N.pick("主治醫師　陳志明", "Attending   Dr. Chen"), pad, 340 * k);
+    g.fillText(I18N.pick("責任護理師　林佳慧", "Primary nurse   Lin"), pad, 404 * k);
+    g.fillText(I18N.pick("入院日　2026/11/02", "Admitted   2026/11/02"), pad, 468 * k);
+    const tags = I18N.isEn ? [["NPO", 3], ["High fall risk", 2], ["Allergy: penicillin", 3]] : [["禁食", 3], ["跌倒高風險", 2], ["過敏：盤尼西林", 3]];
     let x = pad; const ty = 525 * k, th = 76 * k;
     g.font = `700 ${38 * k}px ${F}`;
     tags.forEach(([t, col]) => {
@@ -439,7 +440,7 @@ img { max-width: 100%; }
       else { g.fillStyle = "#000"; g.fillRect(x, ty, tw, th); g.fillStyle = "#fff"; g.fillRect(x + 6 * k, ty + 6 * k, tw - 12 * k, th - 12 * k); g.fillStyle = "#000"; }
       g.fillText(t, x + 22 * k, ty + th / 2); x += tw + 22 * k;
     });
-    g.fillStyle = "#000"; g.font = `400 ${22 * k}px ${F}`; g.textAlign = "right"; g.fillText("示意資料", W - pad, H - 18 * k); g.textAlign = "left";
+    g.fillStyle = "#000"; g.font = `400 ${22 * k}px ${F}`; g.textAlign = "right"; g.fillText(I18N.pick("示意資料", "Sample data"), W - pad, H - 18 * k); g.textAlign = "left";
     const px = g.getImageData(0, 0, W, H).data;
     for (let i = 0; i < W * H; i++) {
       const r = px[i * 4], gg = px[i * 4 + 1], b = px[i * 4 + 2], l = 0.299 * r + 0.587 * gg + 0.114 * b;
