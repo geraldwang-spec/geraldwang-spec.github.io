@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<style>.embed .backlink{display:none!important}</style>
+<meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/inductive.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>電感式編碼器</title>
+<meta name="description" content="印在電路板上的旋轉變壓器：激勵線圈送出交流磁場，金屬轉子改變兩組接收線圈的振幅，同步解調得到 sin、cos，再用 16 / 15 雙軌 Nonius 算出絕對角度。">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: same datasheet column as the other encoder pages. Bench 1 = unrolled rotor over excitation + sin/cos receive coils, AM scope, demod readout; bench 2 = 16/15 Nonius; then the three-encoder calculation comparison and joint notes. */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --ink:#1b2430; --muted:#5b6675; --line:#d6dce3; --chip:#eef1f4;
+  --sin:#6a60d0; --cos:#0f8a68; --exc:#c8442b; --cu:#b7792f; --result:#0f7a62; --warn:#b5481c;
+  --f-display:"Noto Serif TC","Songti TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740; --chip:#222a33;
+  --sin:#9d95f0; --cos:#3cc29b; --exc:#e2694f; --cu:#d9a15c; --result:#3cc29b; --warn:#f08a5d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161b; --surface:#1a2027; --ink:#e6eaef; --muted:#9aa5b2; --line:#2e3740; --chip:#222a33;
+  --sin:#9d95f0; --cos:#3cc29b; --exc:#e2694f; --cu:#d9a15c; --result:#3cc29b; --warn:#f08a5d; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.75;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:clamp(28px,5vw,40px)} h2{font-size:24px} h3{font-size:17px;margin:0}
+p{margin:0;max-width:68ch}
+.eyebrow{font-size:13px;letter-spacing:.08em;color:var(--muted)}
+.lede{color:var(--muted);font-size:17px}
+section{display:flex;flex-direction:column;gap:16px}
+.bench{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+.svgbox{overflow-x:auto}
+.svgbox svg{width:100%;min-width:600px;height:auto;display:block}
+.th{font-size:14px;font-weight:500;fill:var(--ink);font-family:var(--f-body)}
+.ts{font-size:12px;fill:var(--muted);font-family:var(--f-body)}
+.tm{font-size:12px;fill:var(--ink);font-family:var(--f-mono)}
+.ctl{display:grid;grid-template-columns:9em minmax(0,1fr) 5em;align-items:center;gap:10px;font-size:14px}
+.ctl label{color:var(--muted)}
+.ctl output{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--result)}
+select{font:inherit;font-size:14px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+button{font:inherit;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.on{border-color:var(--result);color:var(--result)}
+button.bad.on{border-color:var(--warn);color:var(--warn)}
+:focus-visible{outline:2px solid var(--result);outline-offset:2px}
+.two{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.steps{display:flex;flex-direction:column;gap:10px;min-width:0}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:start}
+.num{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.step .t{font-size:13px;color:var(--muted)}
+.step .v{font-family:var(--f-mono);font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.big{font-family:var(--f-mono);font-size:26px;font-weight:600;color:var(--result)}
+.ok{color:var(--result)} .bad{color:var(--warn)}
+.pill{font-size:12px;padding:1px 9px;border-radius:999px;border:1px solid currentColor;margin-left:8px;font-family:var(--f-body)}
+.s{color:var(--sin)} .c{color:var(--cos)}
+.formula{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--f-mono);font-size:15px;line-height:2;overflow-x:auto}
+.dim{color:var(--muted)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.card p{font-size:15px}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:13px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+.note{font-size:14px;color:var(--muted)}
+.src{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.src a{color:var(--result)}
+a.more{color:var(--result);text-decoration:none;border-bottom:1px dashed currentColor}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="backlink" href="index.html#encoder" style="font-size:14px;color:var(--muted);text-decoration:none">← 回到工具站</a>
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">印在電路板上的旋轉變壓器</div>
+  <h1>電感式編碼器</h1>
+  <p class="lede">激勵線圈送出高頻交流磁場，轉子上的銅箔圖案經過時會產生渦電流、削弱它正上方的磁場。兩組接收線圈因此輸出振幅不同的載波：一組的振幅是 sin φ，另一組是 cos φ。同步解調拿掉載波後，就和霍爾磁環一樣用 atan2 算角度。</p>
+</header>
+
+<section>
+  <h2>線圈、轉子與振幅調變</h2>
+  <div class="bench">
+    <div class="svgbox">
+      <svg id="struct" viewBox="0 0 680 274" role="img" aria-label="攤平的轉子與定子：上方是銅箔目標，下方的定子有一個激勵線圈和 sin、cos 兩組接收線圈">
+        <defs><clipPath id="win"><rect x="40" y="0" width="600" height="274"/></clipPath><clipPath id="cwin"><rect x="47" y="100" width="586" height="160"/></clipPath></defs>
+        <text class="th" x="40" y="22">轉子（被動的銅箔圖案，不用接電）</text>
+        <g clip-path="url(#win)"><g id="pads"></g></g>
+        <line x1="40" y1="70" x2="640" y2="70" stroke="var(--line)"/>
+        <text class="ts" x="640" y="86" text-anchor="end" id="gapLbl">間隙</text>
+        <text class="th" x="40" y="100">定子：激勵線圈 + 兩組接收線圈</text>
+        <rect x="44" y="108" width="592" height="140" rx="10" fill="none" stroke="var(--exc)" stroke-width="2.5"/>
+        <g clip-path="url(#cwin)"><g id="coils"></g></g>
+        <text class="ts" x="636" y="266" text-anchor="end" style="fill:var(--exc)">外框：激勵線圈（交流，數百 kHz ~ MHz）</text>
+      </svg>
+    </div>
+    <div class="ctl"><label for="phi">轉子位置（電氣角）</label><input type="range" id="phi" min="0" max="359" step="1" value="160"><output id="phiO">160°</output></div>
+    <div class="ctl"><label for="amp">訊號強度 A（間隙越大越小）</label><input type="range" id="amp" min="0.2" max="1.2" step="0.05" value="1"><output id="ampO">1.00</output></div>
+    <div class="ctl"><label for="nz">雜訊</label><input type="range" id="nz" min="0" max="0.6" step="0.05" value="0.1"><output id="nzO">0.10</output></div>
+    <div class="row">
+      <span>解調方式：</span>
+      <button type="button" id="mSync" class="on">同步解調</button>
+      <button type="button" id="mEnv" class="bad">包絡偵測（錯誤示範）</button>
+      <button type="button" id="play">播放載波</button>
+      <button type="button" id="spin">轉子自動轉</button>
+    </div>
+    <div class="two">
+      <div class="svgbox"><svg id="scope" viewBox="0 0 560 300" role="img" aria-label="sin 與 cos 接收線圈的振幅調變波形，虛線是激勵載波"></svg></div>
+      <div class="steps" aria-live="polite">
+        <div class="step"><div class="num">1</div><div><div class="t">兩組接收線圈的輸出（載波 × 振幅）</div><div class="v" id="st1"></div></div></div>
+        <div class="step"><div class="num">2</div><div><div class="t" id="st2t">解調：乘上載波後取平均（低通濾波）</div><div class="v" id="st2"></div></div></div>
+        <div class="step"><div class="num">3</div><div><div class="t">atan2 算出電氣角（A 在比例裡約掉）</div><div class="v" id="st3"></div><span class="big" id="stBig"></span></div></div>
+        <div class="step"><div class="num">4</div><div><div class="t">振幅檢查 √(s² + c²) = A</div><div class="v" id="st4"></div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="formula">
+    V_sin(t) = A · sin φ · sin ωt<br>
+    V_cos(t) = A · cos φ · sin ωt<br>
+    s = 2 · 平均[ V_sin × sin ωt ] = A · sin φ<br>
+    c = 2 · 平均[ V_cos × sin ωt ] = A · cos φ<br>
+    φ = atan2(s, c) = atan2(sin φ, cos φ) <span class="dim">→ 振幅 A 被約掉，間隙變化不影響角度</span>
+  </div>
+  <div class="cards">
+    <div class="card"><h3>角度藏在振幅比裡</h3><p>載波頻率和相位都不變，只有振幅跟著轉子位置改變。sin 線圈和 cos 線圈錯開 90° 電氣角，兩者的振幅比就決定了角度。電容式則是一個訊號、角度藏在相位裡。</p></div>
+    <div class="card"><h3>負號 = 載波反相</h3><p>sin φ 是負的時候，線圈輸出不是變小，而是載波整個反過來（差 180°）。同步解調乘上原本的載波會得到負值；包絡偵測只取大小，負號不見，atan2 就分不出象限。按「包絡偵測」把轉子拉到 90° ~ 360° 看看。</p></div>
+    <div class="card"><h3>不怕間隙變化</h3><p>間隙變大時兩組訊號一起變弱，比例不變，所以角度幾乎不受影響。把訊號強度拉小試試：角度不變，但振幅檢查會亮燈，雜訊比例也會變大。</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>16 / 15 雙軌算出絕對角度</h2>
+  <p>TI 的電感式參考設計 TIDUFF8 用兩組接收線圈，每圈分別 16 和 15 個週期，和磁環的 32 / 31 是同一個 Nonius 原理，只是 M 換成 16。主軌一格 22.5°，容許的粗角度誤差是 ±11.25°，比 32 / 31 寬鬆一倍，但主軌誤差只被除以 16。</p>
+  <div class="bench">
+    <div class="ctl"><label for="th">實際角度 θ</label><input type="range" id="th" min="0" max="359.9" step="0.1" value="100"><output id="thO">100.0°</output></div>
+    <div class="ctl"><label for="terr">Nonius 軌相位誤差</label><input type="range" id="terr" min="-20" max="20" step="0.5" value="2"><output id="terrO">+2.0°</output></div>
+    <div class="ctl"><label for="mm">軌道組合</label><select id="mm"><option value="16" selected>16 / 15（TI TIDUFF8）</option><option value="32">32 / 31</option></select><span></span></div>
+    <div class="svgbox"><svg id="nplot" viewBox="0 0 680 196" role="img" aria-label="主軌、Nonius 軌與相位差隨機械角變化，標出目前角度"></svg></div>
+    <div class="steps" id="ns"></div>
+  </div>
+  <p class="note">這段計算和工具站的 <a class="more" href="index.html#encoder/nonius" target="_top">Nonius 絕對角度計算</a> 完全相同；另一種做法是粗 / 細兩軌（例如 32 + 1 週期），算法和 <a class="more" href="index.html#encoder/capacitive" target="_top">電容式編碼器</a> 頁的粗 / 細通道一樣。</p>
+</section>
+
+<section>
+  <h2>計算流程：三種編碼器對照</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>步驟</th><th>霍爾 + 磁環</th><th>電容式</th><th>電感式</th></tr></thead>
+    <tbody>
+      <tr><td>1. 感測器輸出</td><td>電壓本身就是 sin φ、cos φ</td><td>一個訊號 sin(ωt − φ)，角度在相位裡</td><td>兩個訊號 A·sin φ·sin ωt、A·cos φ·sin ωt，角度在振幅裡</td></tr>
+      <tr><td>2. 解調</td><td>不需要</td><td>分別乘上 sin ωt、−cos ωt 再取平均</td><td>兩路都乘上同一個載波 sin ωt 再取平均</td></tr>
+      <tr><td>3. 正規化</td><td colspan="3">s = (讀值 − 中心) ÷ 振幅，c 同理；中心和振幅由出廠轉一圈的最大、最小值算出</td></tr>
+      <tr><td>4. 算相位</td><td colspan="3">φ = atan2(s, c)，負的加 360°</td></tr>
+      <tr><td>5. 絕對角度</td><td>Nonius（32 / 31）</td><td>粗 / 細（N / 1）</td><td>Nonius（16 / 15）或粗 / 細（32 / 1）</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>三種方式比較</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>項目</th><th>霍爾 + 磁環</th><th>電容式</th><th>電感式</th></tr></thead>
+    <tbody>
+      <tr><td>訊號來源</td><td>永久磁鐵</td><td>定子送出的交流電場</td><td>定子送出的交流磁場</td></tr>
+      <tr><td>轉子</td><td>多極磁環</td><td>導電圖案 PCB</td><td>導電圖案 PCB（被動）</td></tr>
+      <tr><td>受磁場影響</td><td>會</td><td>不會</td><td>不會</td></tr>
+      <tr><td>灰塵、油、水</td><td>不怕</td><td>怕水氣、導電液體</td><td>很耐，可以泡水泡油</td></tr>
+      <tr><td>安裝公差</td><td>中等</td><td>較嚴</td><td>最寬鬆</td></tr>
+      <tr><td>附近有金屬</td><td>怕導磁材料</td><td>較不影響</td><td>會改變磁場，要保持距離</td></tr>
+      <tr><td>接 MCU</td><td>sin / cos 類比進 ADC</td><td>多半買整合模組</td><td>有晶片輸出類比 sin / cos，可以自己接 ADC</td></tr>
+    </tbody>
+  </table></div>
+  <div class="cards">
+    <div class="card"><h3>IncOder（Celera Motion / Zettlex）</h3><p>中空軸環形模組，37 mm 與 58 mm，最高 17 bit。整圈靜態精度 37 mm 約 353 弧秒、58 mm 約 150 弧秒。軸向間隙 37 mm 為 0.5 ± 0.2 mm，徑向偏心最大 0.2 mm；IP67 / IP68，可用在礦物油中。</p></div>
+    <div class="card"><h3>TI LDC5072 參考設計（TIDUFF8）</h3><p>兩顆 LDC5072 負責激勵和解調，輸出差動類比 sin / cos；MSPM0G3507 的 ADC 以 32 kHz 取樣，做增益、偏移校正和 16 / 15 雙軌計算。應用列出伺服驅動器、工業機器人與協作型人形機器人。</p></div>
+    <div class="card"><h3>Renesas IPS2200</h3><p>渦電流原理，一個發射線圈加兩個接收線圈，輸出單端或差動 sin / cos，電氣轉速最高 250,000 rpm，主要用在 BLDC 換相。官網已標示停產，新設計要找替代品。</p></div>
+  </div>
+  <div class="cards">
+    <div class="card"><h3>用在關節的優點</h3><p>不怕馬達和剎車的磁場；安裝公差最寬鬆，受力變形和熱膨脹影響小；油、灰塵、水氣都不太怕，適合減速機旁邊；線圈印在 PCB 上成本低，又有現成晶片輸出類比 sin / cos，MCU 端可以沿用 ADC + 校正 + atan2 + Nonius。</p></div>
+    <div class="card"><h3>用在關節要注意</h3><p>外殼、螺絲、軸承等金屬零件會改變磁場，要保持距離或納入設計；小直徑時精度約 0.1° 等級；線圈形狀決定訊號品質，最好從晶片廠的參考設計開始；激勵線圈本身會發出高頻磁場，PCB 布局要注意 EMI。</p></div>
+  </div>
+  <div class="src">
+    <span>參考資料</span>
+    <a href="https://www.ti.com/document-viewer/lit/html/TIDUFF8/GUID-F663EE70-2FF9-4DCA-A4AC-1FAA18C31257" target="_blank" rel="noopener">TI TIDUFF8：電感式絕對角度編碼器參考設計</a>
+    <a href="https://www.kollmorgen.com/sites/default/files/IncOder-Product-Guide_MINI_Rev_4.11.6.pdf" target="_blank" rel="noopener">IncOder Product Guide MINI（Kollmorgen）</a>
+    <a href="https://www.machinedesign.com/archive/coil-turns" target="_blank" rel="noopener">Coil turns（Machine Design）</a>
+    <a href="https://www.renesas.com/en/products/ips2200" target="_blank" rel="noopener">Renesas IPS2200</a>
+  </div>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const L=(zh,en)=>(window.I18N&&I18N.isEn)?en:zh;
+const D=180/Math.PI, md=x=>((x%360)+360)%360;
+const f3=x=>(Math.abs(x)<5e-4?0:x).toFixed(3).replace('-','−');
+const f1=x=>(Math.abs(x)<0.05?0:x).toFixed(1).replace('-','−');
+const X0=40,P=240,MS=156,MC=204,H=20;
+let tPhase=0,mode='sync';
+
+/* coils (static) */
+(function drawCoils(){
+  let h='';
+  const curve=(mid,fn,sign)=>{let d='';for(let x=X0-P;x<=640+P;x+=3){const u=(x-X0)/P*2*Math.PI;d+=(d?'L':'M')+x+' '+(mid+sign*H*fn(u)).toFixed(1);}return d;};
+  [[MS,Math.sin,'var(--sin)'],[MC,Math.cos,'var(--cos)']].forEach(([mid,fn,col])=>{
+    h+=`<path d="${curve(mid,fn,1)}" fill="none" stroke="${col}" stroke-width="2"/><path d="${curve(mid,fn,-1)}" fill="none" stroke="${col}" stroke-width="2"/>`;
+    for(let n=-1;n<4;n++)for(const q of [0.25,0.75]){
+      const uC=fn===Math.sin?q:q-0.25;const x=X0+(n+uC)*P;if(x<46||x>634)continue;
+      const plus=fn===Math.sin?q===0.25:q===0.25;
+      h+=`<text x="${x}" y="${mid+5}" text-anchor="middle" font-size="13" font-weight="600" fill="${col}" font-family="var(--f-mono)">${plus?'+':'−'}</text>`;}
+  });
+  h+=`<text class="ts" x="54" y="${MS-H-8}" style="fill:var(--sin)">${L('sin 接收線圈','sin receive coil')}</text><text class="ts" x="54" y="${MC+H+16}" style="fill:var(--cos)">${L('cos 接收線圈（錯開 1/4 週期）','cos receive coil (shifted 1/4 period)')}</text>`;
+  $('coils').innerHTML=h;
+})();
+function drawPads(phi,amp){
+  const c0=X0+P/2+phi/360*P;let h='';
+  const y=36+ (1-Math.min(1,amp))*14, hgt=22;
+  for(let n=-2;n<4;n++){const cx=c0+n*P;h+=`<rect x="${(cx-P/4).toFixed(1)}" y="${y.toFixed(1)}" width="${P/2}" height="${hgt}" rx="3" fill="var(--cu)" opacity=".9"/>`;
+    h+=`<rect x="${(cx-P/4).toFixed(1)}" y="${(y+hgt+2).toFixed(1)}" width="${P/2}" height="4" fill="var(--cu)" opacity=".25"/>`;}
+  $('pads').innerHTML=h;
+  $('gapLbl').textContent=L('間隙：A = ','Gap: A = ')+amp.toFixed(2)+L('（訊號強度）',' (signal strength)');
+}
+
+/* demod */
+let rng=1;const rand=()=>{rng=(rng*16807)%2147483647;return rng/2147483647;};
+const gauss=()=>{let u=0;while(!u)u=rand();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rand());};
+function demod(phi,A,nz,m){
+  const as=A*Math.sin(phi/D),ac=A*Math.cos(phi/D),N=32*64;let S=0,C=0,ES=0,EC=0;rng=11;
+  for(let k=0;k<N;k++){const wt=2*Math.PI*k/64,car=Math.sin(wt);const vs=as*car+nz*gauss(),vc=ac*car+nz*gauss();
+    S+=vs*car;C+=vc*car;ES+=Math.abs(vs);EC+=Math.abs(vc);}
+  if(m==='sync')return {s:2*S/N,c:2*C/N};
+  /* envelope detector: rectified mean × π/2 recovers |amplitude| only */
+  return {s:ES/N*Math.PI/2,c:EC/N*Math.PI/2};
+}
+
+/* scope */
+function drawScope(phi,A,nz){
+  const as=A*Math.sin(phi/D),ac=A*Math.cos(phi/D),Lx=96,R=550,cyc=3,X=t=>Lx+(R-Lx)*t/cyc,a=46;
+  const rows=[[70,as,'var(--sin)','V_sin'],[200,ac,'var(--cos)','V_cos']];let h='';rng=5;
+  rows.forEach(([y0,amp,col,name])=>{
+    let car='',sig='';for(let k=0;k<=240;k++){const t=k/240*cyc,x=X(t).toFixed(1),cv=Math.sin(2*Math.PI*t+tPhase);
+      car+=(k?'L':'M')+x+' '+(y0-a*cv).toFixed(1);sig+=(k?'L':'M')+x+' '+(y0-a*(amp*cv+nz*0.5*gauss())).toFixed(1);}
+    h+=`<line x1="${Lx}" y1="${y0}" x2="${R}" y2="${y0}" stroke="var(--line)"/>`+
+      `<line x1="${Lx}" y1="${(y0-a*Math.abs(amp)).toFixed(1)}" x2="${R}" y2="${(y0-a*Math.abs(amp)).toFixed(1)}" stroke="${col}" stroke-dasharray="2 4" opacity=".6"/>`+
+      `<line x1="${Lx}" y1="${(y0+a*Math.abs(amp)).toFixed(1)}" x2="${R}" y2="${(y0+a*Math.abs(amp)).toFixed(1)}" stroke="${col}" stroke-dasharray="2 4" opacity=".6"/>`+
+      `<path d="${car}" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4" opacity=".7"/>`+
+      `<path d="${sig}" fill="none" stroke="${col}" stroke-width="2"/>`+
+      `<text class="tm" x="0" y="${y0-12}" style="fill:${col}">${name}</text><text class="tm" x="0" y="${y0+6}">${L('振幅','amp')} ${f3(amp)}</text>`+
+      (amp<-0.02?`<text class="ts" x="0" y="${y0+24}" style="fill:var(--warn)">${L('載波反相','carrier inverted')}</text>`:'');
+  });
+  h+=`<text class="ts" x="${(Lx+R)/2}" y="292" text-anchor="middle">${L('灰色虛線：載波 sin ωt　彩色：線圈輸出　點線：振幅','Grey dashed: carrier · colour: coil output · dotted: amplitude')}</text>`;
+  $('scope').innerHTML=h;
+}
+
+function upd(){
+  const phi=+$('phi').value,A=+$('amp').value,nz=+$('nz').value;
+  $('phiO').textContent=phi+'°';$('ampO').textContent=A.toFixed(2);$('nzO').textContent=nz.toFixed(2);
+  drawPads(phi,A);drawScope(phi,A,nz);
+  const as=A*Math.sin(phi/D),ac=A*Math.cos(phi/D);
+  $('st1').innerHTML=`<span class="s">V_sin = ${f3(as)} · sin ωt</span>${as<-0.02?`<span class="pill bad">${L('反相','inverted')}</span>`:''}<br><span class="c">V_cos = ${f3(ac)} · sin ωt</span>${ac<-0.02?`<span class="pill bad">${L('反相','inverted')}</span>`:''}<br><span class="dim">A · sin ${phi}° = ${f3(as)}，A · cos ${phi}° = ${f3(ac)}</span>`;
+  const r=demod(phi,A,nz,mode);
+  $('st2t').textContent=mode==='sync'?L('解調：乘上載波後取平均（低通濾波），取 32 個週期','Demodulate: multiply by the carrier and average (low-pass), over 32 periods'):L('包絡偵測：整流後取平均，只留下大小','Envelope detection: rectify and average, keeping only the size');
+  $('st2').innerHTML=mode==='sync'
+    ?`s = 2·${L('平均','mean')}[V_sin × sin ωt] = ${f3(r.s)}<br>c = 2·${L('平均','mean')}[V_cos × sin ωt] = ${f3(r.c)}`
+    :`s = |V_sin| ${L('的平均','mean')} × π/2 = ${f3(r.s)}<br>c = |V_cos| ${L('的平均','mean')} × π/2 = ${f3(r.c)}<br><span class="bad">${L('正負號不見了','The sign is lost')}</span>`;
+  const out=md(Math.atan2(r.s,r.c)*D),err=md(out-phi+180)-180,ok=Math.abs(err)<2;
+  $('st3').innerHTML=`atan2(${f3(r.s)}, ${f3(r.c)})<span class="pill ${ok?'ok':'bad'}">${ok?L('與實際差 ','off by ')+(err>=0?'+':'−')+Math.abs(err).toFixed(2)+'°':L('錯了 ','wrong by ')+f1(Math.abs(err))+'°'}</span>`;
+  $('stBig').textContent=f1(out)+'°';$('stBig').className='big'+(ok?'':' bad');
+  const m=Math.hypot(r.s,r.c),mOk=m>0.7&&m<1.3;
+  $('st4').innerHTML=`${m.toFixed(3)}<span class="pill ${mOk?'ok':'bad'}">${mOk?L('正常','normal'):L('超出 0.7 ~ 1.3，報錯','outside 0.7 ~ 1.3, fault')}</span>`;
+}
+function setMode(m){mode=m;$('mSync').classList.toggle('on',m==='sync');$('mEnv').classList.toggle('on',m==='env');upd();}
+$('mSync').addEventListener('click',()=>setMode('sync'));$('mEnv').addEventListener('click',()=>setMode('env'));
+let playing=false,spinning=false,last=0;
+function tick(ts){if(!playing&&!spinning){last=0;return;}const dt=last?Math.min((ts-last)/1000,.1):0;last=ts;
+  if(playing)tPhase=(tPhase-dt*2*Math.PI*0.6)%(2*Math.PI);
+  if(spinning)$('phi').value=Math.round(md(+$('phi').value+dt*30));
+  upd();requestAnimationFrame(tick);}
+function toggle(btn,flag,on,off){btn.classList.toggle('on',flag);btn.textContent=flag?on:off;if(playing||spinning){last=0;requestAnimationFrame(tick);}}
+$('play').addEventListener('click',()=>{playing=!playing;toggle($('play'),playing,L('暫停載波','Pause carrier'),L('播放載波','Play carrier'));});
+$('spin').addEventListener('click',()=>{spinning=!spinning;toggle($('spin'),spinning,L('停止轉動','Stop spinning'),L('轉子自動轉','Spin rotor'));});
+['phi','amp','nz'].forEach(id=>$(id).addEventListener('input',upd));
+upd();
+
+/* Nonius 16/15 */
+function nonius(){
+  const th=+$('th').value,e=+$('terr').value,M=+$('mm').value;
+  $('thO').textContent=th.toFixed(1)+'°';$('terrO').textContent=(e>0?'+':e<0?'−':'')+Math.abs(e).toFixed(1)+'°';
+  const pA=md(M*th),pB=md((M-1)*th+e),d=md(pA-pB),raw=(M*d-pA)/360,kr=Math.round(raw),k=((kr%M)+M)%M,out=(pA+360*k)/M,per=360/M;
+  const eo=md(out-th+180)-180,ok=Math.abs(eo)<0.01;
+  $('ns').innerHTML=`
+   <div class="step"><div class="num">1</div><div><div class="t">${L(`主軌（${M} 週期）`,`Main track (${M} periods)`)}</div><div class="v">φA = ${M} × ${th.toFixed(1)} mod 360 = <b>${f1(pA)}°</b></div></div></div>
+   <div class="step"><div class="num">2</div><div><div class="t">${L(`Nonius 軌（${M-1} 週期，含誤差）`,`Nonius track (${M-1} periods, with error)`)}</div><div class="v">φB = ${M-1} × ${th.toFixed(1)} ${e<0?'−':'+'} ${Math.abs(e).toFixed(1)} mod 360 = <b>${f1(pB)}°</b></div></div></div>
+   <div class="step"><div class="num">3</div><div><div class="t">${L('相位差 = 粗角度','Phase difference = coarse angle')}</div><div class="v">d = (${f1(pA)} − ${f1(pB)}) mod 360 = <b>${f1(d)}°</b></div></div></div>
+   <div class="step"><div class="num">4</div><div><div class="t">${L('第幾個主軌週期 k（每格 ','Which main period k (')}${+per.toFixed(3)}°${L('，容許粗角度誤差 ±',', coarse error allowed ±')}${+(per/2).toFixed(3)}°${L('）',')')}</div><div class="v">round((${M} × ${f1(d)} − ${f1(pA)}) ÷ 360) = round(${raw.toFixed(2)}) → <b>k = ${k}</b></div></div></div>
+   <div class="step"><div class="num">5</div><div><div class="t">${L('精確角度','Precise angle')}</div><div class="v">θ = (${f1(pA)} + 360 × ${k}) ÷ ${M} = <span class="big" style="font-size:20px">${out.toFixed(2)}°</span><span class="pill ${ok?'ok':'bad'}">${ok?L('k 正確','k correct'):L('k 判錯，跳了 ','k wrong, jumped ')+eo.toFixed(2)+'°'}</span></div></div></div>`;
+  const Lx=120,R=660,X=a=>Lx+(R-Lx)*a/360;
+  const saw=(n,y)=>{let s='';for(let j=0;j<n;j++)s+=`M${X(j*360/n).toFixed(2)} ${y+40}L${X((j+1)*360/n).toFixed(2)} ${y}`;return s;};
+  let h=`<text class="tm" x="0" y="34" style="fill:var(--sin)">φA ${M}</text><text class="tm" x="0" y="88" style="fill:var(--cos)">φB ${M-1}</text><text class="tm" x="0" y="142" style="fill:var(--result)">d = φA − φB</text>`;
+  [10,64,118].forEach(y=>h+=`<rect x="${Lx}" y="${y}" width="${R-Lx}" height="40" rx="3" fill="none" stroke="var(--line)"/>`);
+  h+=`<path d="${saw(M,10)}" fill="none" stroke="var(--sin)" stroke-width="1.2"/><path d="${saw(M-1,64)}" fill="none" stroke="var(--cos)" stroke-width="1.2"/><path d="${saw(1,118)}" fill="none" stroke="var(--result)" stroke-width="2"/>`;
+  h+=`<rect x="${X(k*per).toFixed(1)}" y="10" width="${(X(per)-Lx).toFixed(1)}" height="40" fill="var(--result)" opacity=".15"/>`;
+  h+=`<line x1="${X(th)}" y1="4" x2="${X(th)}" y2="164" stroke="var(--ink)" stroke-dasharray="4 3"/>`;
+  h+=`<g font-family="var(--f-mono)" font-size="12" fill="var(--muted)"><text x="${Lx}" y="180">0°</text><text x="${X(180)}" y="180" text-anchor="middle">180°</text><text x="${R}" y="180" text-anchor="end">360°</text></g>`;
+  $('nplot').innerHTML=h;
+}
+['th','terr'].forEach(id=>$(id).addEventListener('input',nonius));$('mm').addEventListener('change',nonius);
+nonius();
+</script>
+</body>
+</html>

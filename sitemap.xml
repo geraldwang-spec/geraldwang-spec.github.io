@@ -106,6 +106,27 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/capacitive.html"/>
   </url>
   <url>
+    <loc>https://geraldwang-spec.github.io/encoder-toolbox/inductive.html</loc>
+    <lastmod>2026-11-24</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html"/>
+  </url>
+  <url>
+    <loc>https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=zh</loc>
+    <lastmod>2026-11-24</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html"/>
+  </url>
+  <url>
+    <loc>https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=en</loc>
+    <lastmod>2026-11-24</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/inductive.html"/>
+  </url>
+  <url>
     <loc>https://geraldwang-spec.github.io/encoder-toolbox/adc.html</loc>
     <lastmod>2026-11-12</lastmod>
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/adc.html?lang=zh"/>

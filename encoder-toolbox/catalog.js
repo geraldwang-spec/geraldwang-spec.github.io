@@ -52,6 +52,14 @@ window.CATALOG = [
         points: ["轉子圖案與發射電極的耦合動畫", "接收訊號相位落後 = 轉子角度", "粗 / 細組合與 Nonius 對照、與霍爾比較"]
       },
       {
+        id: "inductive",
+        name: "電感式編碼器",
+        href: "inductive.html",
+        summary: "印在電路板上的旋轉變壓器：金屬轉子改變兩組接收線圈的振幅，同步解調得到 sin、cos，再用 16 / 15 雙軌 Nonius 算出絕對角度。",
+        tags: ["振幅調變", "同步解調", "16 / 15"],
+        points: ["銅箔轉子經過接收線圈的動畫", "同步解調 vs 包絡偵測、間隙不影響角度", "三種編碼器的計算流程與特性對照"]
+      },
+      {
         id: "adc",
         name: "ADC 電壓換算器",
         href: "adc.html",
@@ -215,6 +223,12 @@ window.CATALOG_EN = {
     summary: "Electric field instead of magnets: how four-phase excitation builds a signal whose phase follows the angle, how synchronous demodulation yields sin and cos, and how coarse / fine channels combine into absolute angle.",
     tags: ["Four-phase excitation", "Synchronous demod", "Coarse / fine"],
     points: ["Animated coupling between rotor pattern and transmit electrodes", "Receive-signal phase lag = rotor angle", "Coarse / fine vs Nonius, and vs Hall sensing"]
+  },
+  "encoder/inductive": {
+    name: "Inductive Encoder",
+    summary: "A resolver printed on a circuit board: a metal rotor changes the amplitude in two receive coils, synchronous demodulation yields sin and cos, and a 16 / 15 dual-track Nonius gives the absolute angle.",
+    tags: ["Amplitude modulation", "Synchronous demod", "16 / 15"],
+    points: ["Animated copper rotor passing over the receive coils", "Synchronous vs envelope detection; gap doesn't change the angle", "Calculation flow and traits of the three encoder types"]
   },
   "encoder/adc": {
     name: "ADC Voltage Converter",

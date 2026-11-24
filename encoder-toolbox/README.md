@@ -8,6 +8,7 @@
 - `atan2.html`：atan2 單位圓（sin、cos 怎麼變成角度）
 - `nonius.html`：Nonius 雙磁軌絕對角度計算
 - `capacitive.html`：電容式編碼器（四相激勵、同步解調、粗 / 細通道）
+- `inductive.html`：電感式編碼器（振幅調變、同步解調、16 / 15 雙軌）
 - `adc.html`：ADC 電壓換算器
 
 硬體量測計算（大項 `bench`，由原本的 Excel 小工具改寫，共用 `bench.css`、`bench.js`）：
