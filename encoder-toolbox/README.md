@@ -20,6 +20,7 @@
 - `roi.html`：影像取樣範圍座標
 - `pit.html`：KL27 PIT LDVAL 計算
 - `battery.html`：電池續航（容量、耗電流、每個 % 的電壓）
+- `soundcheck.html`：Soundcheck Log 分析（選資料夾批次讀取 Soundcheck 匯出的 Tab 分隔 log；每個測項一張表和圖，中位數 / MAD 排除離群後算 μ ± Nσ 上下限，可設分段規則與手動上下限，匯出 Excel。log 只在瀏覽器裡處理，不會上傳；設定存在 localStorage，可匯出／匯入 JSON。不共用 `bench.css`，樣式寫在頁面內）
 
 軟體設計（大項 `dev`）：
 
