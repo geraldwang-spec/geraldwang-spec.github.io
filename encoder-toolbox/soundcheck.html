@@ -272,10 +272,10 @@ function parseLog(text, fileName) {
         const sn = (yr.sn || xr.sn).trim();
         if (!sn) continue;
         if (scalar) {
-          out.push({ ...cur, kind: 'scalar', xs: [NaN], ys: [ys.length ? ys[ys.length - 1] : NaN], sn, time: yr.time || xr.time, file: fileName });
+          out.push({ ...cur, kind: 'scalar', xs: [NaN], ys: [ys.length ? ys[ys.length - 1] : NaN], sn, op: (yr.op || xr.op || '').trim(), time: yr.time || xr.time, file: fileName });
         } else {
           const n = Math.min(xs.length, ys.length);
-          out.push({ ...cur, kind: 'curve', xs: xs.slice(0, n), ys: ys.slice(0, n), sn, time: yr.time || xr.time, file: fileName });
+          out.push({ ...cur, kind: 'curve', xs: xs.slice(0, n), ys: ys.slice(0, n), sn, op: (yr.op || xr.op || '').trim(), time: yr.time || xr.time, file: fileName });
         }
       }
     }
@@ -288,7 +288,9 @@ function parseLog(text, fileName) {
       flush();
       const t = f.map(s => s.trim());
       let zi = t.findIndex(s => /^z axis/i.test(s));
+      const lb = x => (x || '').replace(/:\s*$/, '').trim();
       cur = {
+        lbl: { sn: lb(t[0]) || 'Serial #', op: lb(t[1]) || 'Operator', time: lb(t[2]) || 'Time' },
         item: t[3] || '(未命名)',
         logX: t.some(s => /^x axis log/i.test(s)),
         xUnit: zi >= 0 ? (t[zi + 2] || '') : '',
@@ -303,7 +305,7 @@ function parseLog(text, fileName) {
       if (s === '') continue;
       vals.push(/^nan$/i.test(s) ? NaN : parseFloat(s));
     }
-    rows.push({ sn: f[0] || '', time: (f[2] || '').trim(), vals });
+    rows.push({ sn: f[0] || '', op: f[1] || '', time: (f[2] || '').trim(), vals });
   }
   flush();
   return out;
@@ -315,7 +317,7 @@ function buildItems(raw, p) {
   for (const r of raw) {
     let it = map.get(r.item);
     if (!it) {
-      it = { name: r.item, kind: r.kind, xs: r.xs.slice(), xUnit: r.xUnit, yUnit: r.yUnit, logX: r.logX, recs: [] };
+      it = { name: r.item, kind: r.kind, xs: r.xs.slice(), xUnit: r.xUnit, yUnit: r.yUnit, logX: r.logX, lbl: r.lbl, recs: [] };
       map.set(r.item, it); order.push(it);
     }
     let ys = r.ys;
@@ -323,7 +325,7 @@ function buildItems(raw, p) {
       const same = r.xs.length === it.xs.length && r.xs.every((x, i) => x === it.xs[i]);
       if (!same) { const m = new Map(r.xs.map((x, i) => [x, r.ys[i]])); ys = it.xs.map(x => m.has(x) ? m.get(x) : NaN); }
     } else ys = [r.ys[0]];
-    it.recs.push({ sn: r.sn, time: r.time, file: r.file, ys });
+    it.recs.push({ sn: r.sn, op: r.op, time: r.time, file: r.file, ys });
   }
   for (const it of order) {
     if (p.latestOnly) {
@@ -1332,35 +1334,46 @@ function sheet(name, rows) {
   return `<Worksheet ss:Name="${xmlEsc(safe)}"><Table>${rows.map(r => `<Row>${r.map(c => c && typeof c === 'object' ? cell(c.v, c.s) : cell(c)).join('')}</Row>`).join('')}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><SplitVertical>1</SplitVertical><LeftColumnRightPane>1</LeftColumnRightPane></WorksheetOptions></Worksheet>`;
 }
 function exportExcel() {
+  /* Excel 一律用 log 本身的文字（測項名稱、Serial # / Operator / Time、單位），不隨網頁語言翻譯 */
   const p = S.p, H = s => ({ v: s, s: 'h' });
+  const L = (S.items[0] && S.items[0].lbl) || { sn: 'Serial #', op: 'Operator', time: 'Time' };
+  const xu = it => it.xUnit || 'Hz';
+  const src = t => !t ? '' : t === '手動' ? 'Manual' : t === '自動' ? 'Auto' : t.replace(/^分段/, 'Band ');
+  const resultTxt = r => r.flag ? `Outlier ${r.out.length}` : r.fail.length ? `Out of limit ${r.fail.length}` : 'OK';
   const sheets = [];
-  const prob = [[H('序號'), H('測項'), H('離群點數'), H('總點數'), H('最嚴重頻率(Hz)'), H('值'), H('中位數'), H('偏離(σr)'), H('超限點數'), H('時間'), H('檔案')]];
+  const prob = [[H(L.sn), H('Item'), H('Outlier points'), H('Points'), H('Worst point'), H('Value'), H('Unit'), H('Median'), H('Deviation (σr)'), H('Out-of-limit points'), H(L.time), H('File')]];
   S.items.forEach(it => it.recs.forEach(r => {
     if (!r.flag) return;
     const w = r.worst, s = it.stats[w.j];
-    prob.push([r.sn, it.name, r.out.length, it.stats.length, it.kind === 'curve' ? it.xs[w.j] : '', w.v, s.M, +w.z.toFixed(2), r.fail.length, r.time, r.file]);
+    prob.push([r.sn, it.name, r.out.length, it.nOn, it.kind === 'curve' ? `${it.xs[w.j]} ${xu(it)}` : '', w.v, it.yUnit, s.M, +w.z.toFixed(2), r.fail.length, r.time, r.file]);
   }));
-  prob.push([]); prob.push([`參數：k=${p.k}，N=${p.N}，最小半寬=${p.minHalf}，問題門檻≥${p.minPts}點，排除方式=${p.mode === 'unit' ? '問題序號整條排除' : '只排除離群點'}，同序號取最新=${p.latestOnly ? '是' : '否'}`]);
-  prob.push(['方法：M=中位數，MAD=median(|x−M|)，σr=1.4826×MAD；|x−M|>k·σr 為離群不計；其餘算 μ、σ(n−1)；USL=μ+N·σ，LSL=μ−N·σ']);
-  sheets.push(sheet('問題序號', prob));
+  prob.push([]);
+  prob.push([`Settings: k=${p.k}, N=${p.N}, min half-width=${p.minHalf}, decimals=${p.dec}, problem threshold>=${p.minPts} points, exclusion=${p.mode === 'unit' ? 'whole problem unit' : 'outlier points only'}, latest record per serial=${p.latestOnly ? 'yes' : 'no'}`]);
+  prob.push(['Method: M=median, MAD=median(|x-M|), σr=1.4826×MAD; |x-M|>k·σr is an outlier and left out; mean μ and std dev σ (n-1) from the rest; USL=μ+N·σ, LSL=μ-N·σ, rounded']);
+  sheets.push(sheet('Problem serials', prob));
 
-  const lim = [[H('測項'), H('頻率(Hz)'), H('單位'), H('測試'), H('n'), H('中位數M'), H('MAD'), H('σr'), H('排除數'), H('n′'), H('μ'), H('σ'), H('自動USL'), H('自動LSL'), H('使用USL'), H('USL來源'), H('使用LSL'), H('LSL來源')]];
-  S.items.forEach(it => it.stats.forEach((s, j) => lim.push([it.name, it.kind === 'curve' ? it.xs[j] : '', it.yUnit, s.on ? '是' : '否', s.n, s.M, s.MAD, s.sr, s.out.size + s.unitEx.length, s.nk, s.mean, s.sd,
+  const lim = [[H('Item'), H('Frequency'), H('Unit'), H('Test'), H('n'), H('Median'), H('MAD'), H('σr'), H('Excluded'), H('n′'), H('Mean'), H('Std dev'), H('Auto USL'), H('Auto LSL'), H('USL'), H('USL source'), H('LSL'), H('LSL source')]];
+  S.items.forEach(it => it.stats.forEach((s, j) => lim.push([it.name, it.kind === 'curve' ? it.xs[j] : '', it.yUnit, s.on ? 'Y' : 'N', s.n, s.M, s.MAD, s.sr, s.out.size + s.unitEx.length, s.nk, s.mean, s.sd,
     s.autoUsl, s.autoLsl == null ? '' : s.autoLsl,
-    { v: s.usl, s: s.manU ? 'm' : null }, s.srcU, { v: s.lsl == null ? '' : s.lsl, s: s.manL ? 'm' : null }, s.srcL])));
-  sheets.push(sheet('上下限', lim));
+    { v: s.usl, s: s.manU ? 'm' : null }, src(s.srcU), { v: s.lsl == null ? '' : s.lsl, s: s.manL ? 'm' : null }, src(s.srcL)])));
+  sheets.push(sheet('Limits', lim));
 
   const transpose = $('#pDir') && $('#pDir').value === 'col';
   S.items.forEach(it => {
     const isC = it.kind === 'curve';
-    let rows = [[H('Serial_Number'), H('Time'), H('結果'), ...(isC ? it.xs.map(x => H(x)) : [H(it.yUnit || '值')])]];
-    rows.push([H('Test'), '', '', ...it.stats.map(s => s.on ? 1 : 0)]);
-    rows.push([H('USL'), '', '', ...it.stats.map(s => ({ v: s.on ? s.usl : '', s: s.manU ? 'm' : null }))]);
-    rows.push([H('Mean'), '', '', ...it.stats.map(s => s.mean)]);
-    rows.push([H('LSL'), '', '', ...it.stats.map(s => ({ v: s.on && s.lsl != null ? s.lsl : '', s: s.manL ? 'm' : null }))]);
+    const lbl = it.lbl || L;
+    const hasOp = it.recs.some(r => r.op);
+    const lead = hasOp ? 3 : 2;                         // Serial # / (Operator) / Time
+    const pad = n => Array(n).fill('');
+    let rows = [[H(lbl.sn), ...(hasOp ? [H(lbl.op)] : []), H(lbl.time), H('Result'), ...(isC ? it.xs.map(x => H(x)) : [H(it.yUnit || 'Value')])]];
+    if (isC) rows.push([H(xu(it)), ...pad(lead), ...it.xs.map(() => it.yUnit)]);
+    rows.push([H('Test'), ...pad(lead), ...it.stats.map(s => s.on ? 1 : 0)]);
+    rows.push([H('USL'), ...pad(lead), ...it.stats.map(s => ({ v: s.on ? s.usl : '', s: s.manU ? 'm' : null }))]);
+    rows.push([H('Mean'), ...pad(lead), ...it.stats.map(s => s.mean)]);
+    rows.push([H('LSL'), ...pad(lead), ...it.stats.map(s => ({ v: s.on && s.lsl != null ? s.lsl : '', s: s.manL ? 'm' : null }))]);
     it.recs.forEach(r => {
       const o = new Set(r.out), f = new Set(r.fail);
-      rows.push([r.sn, r.time, r.flag ? `離群 ${r.out.length}` : r.fail.length ? `超限 ${r.fail.length}` : 'OK', ...r.ys.map((v, j) => ({ v, s: o.has(j) ? 'o' : f.has(j) ? 'f' : null }))]);
+      rows.push([r.sn, ...(hasOp ? [r.op] : []), r.time, resultTxt(r), ...r.ys.map((v, j) => ({ v, s: o.has(j) ? 'o' : f.has(j) ? 'f' : null }))]);
     });
     if (transpose) rows = rows[0].map((_, c) => rows.map(r => r[c] === undefined ? '' : r[c]));
     sheets.push(sheet(it.name, rows));
