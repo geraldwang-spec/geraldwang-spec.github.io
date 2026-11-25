@@ -73,7 +73,7 @@ window.CATALOG = [
     id: "bench",
     name: "硬體量測計算",
     icon: "chip",
-    summary: "硬體驗證和韌體開發常用的小計算：頻率誤差、電壓容差、量測統計、RF 線損、影像取樣框座標、MCU 計時器設定、電池續航。",
+    summary: "硬體驗證和韌體開發常用的小計算：頻率誤差、電壓容差、量測統計、RF 線損、影像取樣框座標、MCU 計時器設定、電池續航、Soundcheck 測試 log 分析。",
     tools: [
       {
         id: "freq",
@@ -130,6 +130,14 @@ window.CATALOG = [
         summary: "輸入電池容量、耗電流、滿電和斷電電壓，算出可以用多久，以及每個電量 % 對應的電壓。",
         tags: ["mAh", "續航時間", "電量 % ↔ 電壓"],
         points: ["容量 ÷ 電流 = 可用時間", "1% / 5% / 10% 電壓與剩餘時間表", "線性或鋰電池放電曲線"]
+      },
+      {
+        id: "soundcheck",
+        name: "Soundcheck Log 分析",
+        href: "soundcheck.html",
+        summary: "選資料夾批次讀取 Soundcheck log，每個測項整理成表格和曲線圖，自動算上下限、找出有問題的序號。",
+        tags: ["FR / THD", "中位數 / MAD", "μ ± Nσ"],
+        points: ["每台一種顏色的 FR 曲線，紅線上下限", "離群值不納入計算，列出問題序號與計算過程", "分段上下限（A 段 ±3 dB、B 段 ±6 dB）、手動逐格修改，匯出 Excel"]
       }
     ]
   },
@@ -238,7 +246,7 @@ window.CATALOG_EN = {
   },
   "bench": {
     name: "Bench Calculations",
-    summary: "Everyday calculations for hardware validation and firmware work: frequency error, voltage tolerance, measurement statistics, RF cable loss, image ROI coordinates, MCU timer settings and battery life."
+    summary: "Everyday calculations for hardware validation and firmware work: frequency error, voltage tolerance, measurement statistics, RF cable loss, image ROI coordinates, MCU timer settings, battery life and Soundcheck test-log analysis."
   },
   "bench/freq": {
     name: "Frequency Trim & PPM",
@@ -281,6 +289,12 @@ window.CATALOG_EN = {
     summary: "Enter capacity, current draw, full and cut-off voltage to get run time, plus the voltage for each % of charge.",
     tags: ["mAh", "Run time", "Charge % ↔ voltage"],
     points: ["Capacity ÷ current = run time", "Voltage and remaining time at 1% / 5% / 10% steps", "Linear or Li-ion discharge curve"]
+  },
+  "bench/soundcheck": {
+    name: "Soundcheck Log Analyzer",
+    summary: "Batch-read Soundcheck logs from a folder, turn each test item into a table and curve chart, and get limits and problem units automatically.",
+    tags: ["FR / THD", "Median / MAD", "μ ± Nσ"],
+    points: ["FR curves in one colour per unit, limits in red", "Outliers left out of the calculation; problem units and working shown", "Band limits (band A ±3 dB, band B ±6 dB), cell-by-cell edits, Excel export"]
   },
   "dev": {
     name: "Software Design",

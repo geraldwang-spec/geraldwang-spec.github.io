@@ -378,4 +378,25 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/bus.html?lang=en"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/bus.html"/>
   </url>
+  <url>
+    <loc>https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html</loc>
+    <lastmod>2026-11-25</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html"/>
+  </url>
+  <url>
+    <loc>https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=zh</loc>
+    <lastmod>2026-11-25</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html"/>
+  </url>
+  <url>
+    <loc>https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=en</loc>
+    <lastmod>2026-11-25</lastmod>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=zh"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://geraldwang-spec.github.io/encoder-toolbox/soundcheck.html"/>
+  </url>
 </urlset>

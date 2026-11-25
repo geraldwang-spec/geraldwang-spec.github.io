@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script>(function(){try{var q=new URLSearchParams(location.search),t=q.get("theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);if(q.get("embed")==="1")document.documentElement.classList.add("embed");}catch(e){}})();</script>
+<meta charset="utf-8">
+<script src="i18n.js"></script><script src="i18n/soundcheck.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Soundcheck Log 分析工具</title>
+<meta name="description" content="選擇資料夾批次讀取 Soundcheck log，每個測項整理成表格與曲線圖，用中位數 / MAD 排除離群值後計算上下限，並列出有問題的序號。">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f4f4f2; --surface:#fcfcfb; --surface-2:#f0efec; --border:#dddcd6;
+  --text:#0b0b0b; --text-2:#52514e; --muted:#8a8984;
+  --series:#2a78d6; --accent:#2a78d6;
+  --bad:#c93434; --bad-bg:#fbe1e0; --warn:#9a5c00; --warn-bg:#fdf0d2; --ok:#1a7f37; --ok-bg:#e2f3e5;
+  --limit:#d62828; --mean:#6f6e69; --grid:#e6e5e0;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111110; --surface:#1a1a19; --surface-2:#242422; --border:#363633;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8e88;
+    --series:#3987e5; --accent:#3987e5;
+    --bad:#e66767; --bad-bg:#4a2323; --warn:#e3aa48; --warn-bg:#3d3016; --ok:#4cc26a; --ok-bg:#173a22;
+    --limit:#ff5a5a; --mean:#a9a89f; --grid:#2b2b29;
+  }
+}
+:root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#111110; --surface:#1a1a19; --surface-2:#242422; --border:#363633;
+    --text:#f0efec; --text-2:#c3c2b7; --muted:#8f8e88;
+    --series:#3987e5; --accent:#3987e5;
+    --bad:#e66767; --bad-bg:#4a2323; --warn:#e3aa48; --warn-bg:#3d3016; --ok:#4cc26a; --ok-bg:#173a22;
+    --limit:#ff5a5a; --mean:#a9a89f; --grid:#2b2b29;
+  }
+.embed .backlink{display:none!important}
+.backlink{color:var(--text-2);text-decoration:none;font-size:13px;margin-right:6px}
+.backlink:hover{color:var(--accent)}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC",sans-serif;background:var(--bg);color:var(--text)}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;position:sticky;top:0;z-index:20}
+h1{font-size:18px;margin:0 12px 0 0;font-weight:650}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.btn{appearance:none;border:1px solid var(--border);background:var(--surface-2);color:var(--text);padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.drop{border:1.5px dashed var(--border);border-radius:8px;padding:5px 12px;color:var(--text-2)}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.status{color:var(--text-2);font-size:13px}
+.settings{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--text-2)}
+.settings label{display:flex;align-items:center;gap:6px}
+.settings .set{display:inline-flex;align-items:center;gap:4px}
+.info{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--accent);background:var(--surface);color:var(--accent);font:700 11px/1 system-ui,sans-serif;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.info:hover,.info.on{background:var(--accent);color:#fff}
+.info:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#helpPop{position:fixed;z-index:60;width:min(360px,calc(100vw - 24px));background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px 12px;font-size:13px;line-height:1.6;display:none}
+#helpPop h4{margin:0 26px 6px 0;font-size:14px}
+#helpPop ul{margin:4px 0 0;padding-left:18px}
+#helpPop li{margin:2px 0}
+#helpPop .x{position:absolute;top:6px;right:8px;border:none;background:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1}
+#helpPop .x:hover{color:var(--text)}
+#helpPop .eg{color:var(--text-2);font-size:12.5px;margin-top:6px}
+.settings input[type=number]{width:62px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}
+.settings input[type=text]{width:90px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}
+.settings select{padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;padding:10px 20px 0;background:var(--bg)}
+nav.tabs button{border:1px solid transparent;border-bottom:none;background:none;color:var(--text-2);padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;font:inherit;white-space:nowrap}
+nav.tabs button.active{background:var(--surface);border-color:var(--border);color:var(--text);font-weight:600}
+nav.tabs button .dot{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:var(--bad-bg);color:var(--bad);font-size:11px;font-weight:700;text-align:center}
+main{padding:0 20px 40px}
+#banner{padding:0 20px}
+#banner .bn{margin-top:12px;border:1.5px solid var(--accent);background:var(--surface);border-radius:10px;padding:10px 14px;font-size:13.5px}
+#banner .bn b.t{color:var(--accent)}
+#banner .bn .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+#content{background:var(--surface);border:1px solid var(--border);border-radius:0 10px 10px 10px;padding:18px;min-height:300px}
+.empty{color:var(--text-2);text-align:center;padding:60px 20px}
+.empty b{color:var(--text)}
+.card{border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;background:var(--surface)}
+.card h3{margin:0 0 8px;font-size:15px}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-bottom:8px}
+.card-h h3{margin:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:1000px){.grid2{grid-template-columns:1fr}}
+.item-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+.item-head h2{margin:0 8px 0 0;font-size:20px}
+.chip{font-size:12px;padding:2px 9px;border-radius:10px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.chip.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent;font-weight:600}
+.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.kpi{flex:1 1 150px;border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.kpi .v{font-size:26px;font-weight:650;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12px;color:var(--text-2)}
+.kpi.bad .v{color:var(--bad)}
+ol.method{margin:0;padding-left:22px}
+ol.method li{margin:3px 0}
+.formula{font-family:ui-monospace,Consolas,"Cascadia Mono",monospace;font-size:13px;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+.note{font-size:12.5px;color:var(--text-2);margin-top:8px}
+.detail-tbl{border-collapse:collapse;width:100%;font-size:13px}
+.detail-tbl td{padding:4px 6px;border-bottom:1px solid var(--grid);vertical-align:top}
+.detail-tbl td:first-child{color:var(--text-2);white-space:nowrap;width:1%}
+.detail-tbl td.num{font-family:ui-monospace,Consolas,monospace}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--text-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:18px;height:0;border-top:2px solid}
+.sw.dash{border-top-style:dashed}
+.swb{display:inline-block;width:12px;height:12px;border-radius:3px}
+.ctl{display:flex;gap:14px;font-size:13px;color:var(--text-2);margin-left:auto}
+.ctl label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.chart{position:relative;width:100%}
+.chart svg{display:block}
+.chart .grid{stroke:var(--grid);stroke-width:1}
+.chart .grid.minor{stroke:var(--grid);stroke-dasharray:2 3}
+.chart .axis{stroke:var(--muted);stroke-width:1}
+.chart .tick{fill:var(--text-2);font-size:11px}
+.chart .albl{fill:var(--text-2);font-size:12px}
+.chart path.c{fill:none;stroke-linejoin:round;stroke-linecap:round}
+.chart path.c{stroke:var(--c)}
+.chart path.c.n{stroke-width:1.3;opacity:.75}
+.chart path.c.b{stroke-width:3;opacity:1}
+.chart.dim path.c:not(.hl):not(.sel){opacity:.25}
+.chart path.c.hl{opacity:1;stroke-width:3.2}
+.chart path.c.sel{opacity:1;stroke-width:3.4;filter:drop-shadow(0 0 2px var(--text))}
+.chart circle.d{fill:var(--c);stroke:var(--surface);stroke-width:1.5}
+.chart circle.d.n{opacity:.9}
+.chart circle.d.b{stroke:var(--text);stroke-width:2.5}
+.chart circle.d.hl{opacity:1;stroke:var(--text);stroke-width:2}
+.chart circle.d.sel{opacity:1;stroke:var(--text);stroke-width:3}
+.chart .lim{fill:none;stroke:var(--limit);stroke-width:2.4}
+.sncol{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--c);margin-right:6px;vertical-align:-1px}
+.snlegend{display:flex;flex-wrap:wrap;gap:2px 4px;max-height:96px;overflow:auto;margin-top:6px;padding:6px;border:1px solid var(--grid);border-radius:8px;font-size:12px}
+.snlegend a{color:var(--text-2);text-decoration:none;padding:1px 6px;border-radius:5px;white-space:nowrap}
+.snlegend a:hover,.snlegend a.sel{background:var(--surface-2);color:var(--text)}
+.snlegend a.bad{font-weight:700;color:var(--text)}
+.chart .mean{fill:none;stroke:var(--mean);stroke-width:1.5;stroke-dasharray:5 4}
+.chart .limlbl{fill:var(--limit);font-size:11px;font-weight:600}
+.chart .ptmark{fill:var(--c);stroke:var(--text);stroke-width:2.5;pointer-events:none}
+.chart .xh{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.15);white-space:nowrap;display:none;z-index:5}
+.tip b{font-weight:650}
+.tip .s{color:var(--text-2)}
+.tbl-wrap{overflow:auto;max-height:620px;border:1px solid var(--border);border-radius:8px}
+table.xl{border-collapse:separate;border-spacing:0;font-size:12.5px;font-variant-numeric:tabular-nums}
+table.xl th,table.xl td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:3px 8px;white-space:nowrap;text-align:right;background:var(--surface)}
+table.xl thead th{position:sticky;top:0;background:var(--surface-2);z-index:3;font-weight:600;color:var(--text-2)}
+table.xl thead th.fq{cursor:pointer}
+table.xl thead th.fq:hover,table.xl thead th.fq.selc{color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+table.xl .stk{position:sticky;z-index:2;text-align:left}
+table.xl thead .stk{z-index:4}
+table.xl .c0{left:0;min-width:40px}
+table.xl .c1{left:40px;min-width:130px}
+table.xl tr.sum td{background:var(--surface-2);font-weight:600}
+table.xl tr.sum td.stk{color:var(--text-2)}
+table.xl tbody tr.r{cursor:pointer}
+table.xl tbody tr.r:hover td{filter:brightness(.97)}
+table.xl tbody tr.sel td{box-shadow:inset 0 1px 0 var(--accent),inset 0 -1px 0 var(--accent)}
+table.xl td.o{background:var(--bad-bg);color:var(--bad);font-weight:650}
+table.xl td.f{background:var(--warn-bg);color:var(--warn)}
+table.xl td.st-bad{color:var(--bad);font-weight:600;text-align:left}
+table.xl td.st-warn{color:var(--warn);text-align:left}
+table.xl td.st-ok{color:var(--ok);text-align:left}
+table.xl td.selc{outline:1px solid var(--accent);outline-offset:-1px}
+table.list{border-collapse:collapse;width:100%;font-size:13px}
+table.list th,table.list td{padding:6px 8px;border-bottom:1px solid var(--grid);text-align:left}
+table.list th{color:var(--text-2);font-weight:600;background:var(--surface-2)}
+table.list tr.link{cursor:pointer}
+table.list tr.link:hover td{background:var(--surface-2)}
+.tag{display:inline-block;padding:0 7px;border-radius:9px;font-size:12px;font-weight:600}
+.tag.bad{background:var(--bad-bg);color:var(--bad)}
+.tag.warn{background:var(--warn-bg);color:var(--warn)}
+.tag.ok{background:var(--ok-bg);color:var(--ok)}
+.matrix td{text-align:center}
+.matrix td:first-child{text-align:left}
+.skip{font-size:12.5px;color:var(--text-2)}
+table.xl input.lim{width:66px;text-align:right;border:1px solid transparent;border-radius:4px;background:transparent;font:inherit;color:var(--text);padding:1px 3px}
+table.xl input.lim::placeholder{color:var(--muted);opacity:1}
+table.xl input.lim:hover{border-color:var(--border)}
+table.xl input.lim:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+table.xl input.lim.man{color:var(--accent);font-weight:700}
+table.xl input.lim.band::placeholder{color:var(--ok);font-weight:600}
+table.xl td.off{color:var(--muted);background-image:repeating-linear-gradient(135deg,transparent 0 5px,var(--grid) 5px 6px)}
+table.xl td.ctr{text-align:center}
+table.xl td.hint{font-size:11px;color:var(--muted);text-align:left;font-weight:400}
+.chart .offband{fill:var(--muted);opacity:.12}
+.cfg-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.cfg-row input[type=number],.cfg-row input[type=text]{width:80px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}
+.cfg-row select{padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}
+.cfg-row .lbl{color:var(--text-2);min-width:96px}
+.btn.sm{padding:3px 10px;font-size:13px}
+table.bands{border-collapse:collapse;font-size:13px;margin:4px 0 6px}
+table.bands th{font-weight:600;color:var(--text-2);text-align:left;padding:3px 8px 3px 0}
+table.bands td{padding:3px 8px 3px 0}
+table.bands input{width:86px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit;text-align:right}
+table.bands .rb{border:1px solid var(--border);background:var(--surface-2);color:var(--text-2);cursor:pointer;font:inherit;font-size:12px;padding:2px 8px;border-radius:6px;margin-right:4px}
+table.bands .rb:hover{border-color:var(--accent);color:var(--accent)}
+table.bands .rb.del:hover{border-color:var(--bad);color:var(--bad)}
+.bandcount{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.bandcount button{border:none;background:var(--surface-2);color:var(--text);width:30px;height:28px;cursor:pointer;font-size:16px}
+.bandcount button:hover{background:var(--accent);color:#fff}
+.bandcount input{width:44px;height:28px;border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);text-align:center;background:var(--surface);color:var(--text);font:inherit}
+.subhead{font-weight:600;font-size:13px;margin:14px 0 2px;padding-top:10px;border-top:1px solid var(--grid)}
+.progress{height:3px;background:var(--accent);width:0;transition:width .15s;position:absolute;left:0;bottom:-1px}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <a class="backlink" href="./#bench">← 回到工具站</a>
+    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-25f</span></h1>
+    <button class="btn primary" id="btnFolder">選擇資料夾…</button>
+    <input type="file" id="inFolder" webkitdirectory directory multiple hidden>
+    <span class="drop" id="drop">或把資料夾拖曳到這裡</span>
+    <button class="btn" id="btnExport" disabled>匯出 Excel</button>
+    <button class="btn" id="btnCfgOut" title="把各測項的手動上下限和測試頻點存成 JSON 檔">匯出設定</button>
+    <button class="btn" id="btnCfgIn" title="載入之前匯出的設定檔">匯入設定</button>
+    <input type="file" id="inCfg" accept=".json,application/json" hidden>
+    <span class="status" id="status">尚未載入資料</span>
+  </div>
+  <div class="settings">
+    <span class="set"><label>副檔名 <input type="text" id="pExt" value=".txt"></label><button type="button" class="info" data-help="ext" aria-label="副檔名說明">!</button></span>
+    <span class="set"><label>離群倍數 k <input type="number" id="pK" value="3.5" step="0.5" min="1"></label><button type="button" class="info" data-help="k" aria-label="離群倍數說明">!</button></span>
+    <span class="set"><label>上下限 N·σ，N = <input type="number" id="pN" value="3" step="0.5" min="0.5"></label><button type="button" class="info" data-help="N" aria-label="上下限 N 說明">!</button></span>
+    <span class="set"><label>最小半寬 <input type="number" id="pHalf" value="0" step="0.1" min="0"></label><button type="button" class="info" data-help="half" aria-label="最小半寬說明">!</button></span>
+    <span class="set"><label>上下限小數 <input type="number" id="pDec" value="1" step="1" min="0" max="4"> 位</label><button type="button" class="info" data-help="dec" aria-label="上下限小數位數說明">!</button></span>
+    <span class="set"><label>問題門檻 ≥ <input type="number" id="pPts" value="3" step="1" min="1"> 點</label><button type="button" class="info" data-help="pts" aria-label="問題門檻說明">!</button></span>
+    <span class="set"><label>排除方式
+      <select id="pMode">
+        <option value="point">只排除離群的點</option>
+        <option value="unit">問題序號整條排除</option>
+      </select></label><button type="button" class="info" data-help="mode" aria-label="排除方式說明">!</button></span>
+    <span class="set"><label><input type="checkbox" id="pLatest" checked> 同序號只取最新一筆</label><button type="button" class="info" data-help="latest" aria-label="同序號只取最新一筆說明">!</button></span>
+    <span class="set"><label><input type="checkbox" id="pOneSided" checked> THD（%）只算上限</label><button type="button" class="info" data-help="onesided" aria-label="THD 只算上限說明">!</button></span>
+  </div>
+  <div class="progress" id="prog"></div>
+</header>
+<div id="banner"></div>
+<nav class="tabs" id="tabs"></nav>
+<main><div id="content"><div class="empty">
+  <p><b>選擇存放 Soundcheck log 的資料夾</b>（子資料夾也會一起讀取），或直接把資料夾拖曳到上方。</p>
+  <p>每個測項（THD_L、FR_L、Sensitivity_L…）會各自整理成一張表和一張圖，<br>並自動計算上下限、找出離群序號。所有處理都在瀏覽器裡完成，檔案不會上傳。</p>
+</div></div></main>
+
+<script>
+"use strict";
+/* ===================== 工具函式 ===================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : '—';
+const fmtF = f => !Number.isFinite(f) ? '—' : f >= 1000 ? (+(f / 1000).toFixed(3)) + 'k' : String(+f.toFixed(2));
+function median(a) {
+  const s = a.slice().sort((x, y) => x - y), n = s.length;
+  if (!n) return NaN;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+
+/* ===================== 解析 Soundcheck log =====================
+   格式（Tab 分隔）：
+   Serial #: | Operator: | Time: | 測項名稱 | | x data .. | y data .. | ... | x 單位 | y 單位
+   序號 | 操作員 | 時間 | x 值（頻率）...
+   序號 | 操作員 | 時間 | y 值（量測）...
+   單值測項（如 Sensitivity）x 列為 NaN，y 列只有一個值。                       */
+function parseLog(text, fileName) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const out = [];
+  let cur = null, rows = [];
+  const flush = () => {
+    if (cur) {
+      for (let k = 0; k + 1 < rows.length; k += 2) {
+        const xr = rows[k], yr = rows[k + 1];
+        const xs = xr.vals, ys = yr.vals;
+        const scalar = xs.length <= 1 && !Number.isFinite(xs[0]);
+        const sn = (yr.sn || xr.sn).trim();
+        if (!sn) continue;
+        if (scalar) {
+          out.push({ ...cur, kind: 'scalar', xs: [NaN], ys: [ys.length ? ys[ys.length - 1] : NaN], sn, op: (yr.op || xr.op || '').trim(), time: yr.time || xr.time, file: fileName });
+        } else {
+          const n = Math.min(xs.length, ys.length);
+          out.push({ ...cur, kind: 'curve', xs: xs.slice(0, n), ys: ys.slice(0, n), sn, op: (yr.op || xr.op || '').trim(), time: yr.time || xr.time, file: fileName });
+        }
+      }
+    }
+    cur = null; rows = [];
+  };
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const f = raw.split('\t');
+    if (f[0].trim().startsWith('Serial #')) {
+      flush();
+      const t = f.map(s => s.trim());
+      let zi = t.findIndex(s => /^z axis/i.test(s));
+      const lb = x => (x || '').replace(/:\s*$/, '').trim();
+      cur = {
+        lbl: { sn: lb(t[0]) || 'Serial #', op: lb(t[1]) || 'Operator', time: lb(t[2]) || 'Time' },
+        item: t[3] || '(未命名)',
+        logX: t.some(s => /^x axis log/i.test(s)),
+        xUnit: zi >= 0 ? (t[zi + 2] || '') : '',
+        yUnit: zi >= 0 ? (t[zi + 3] || '') : '',
+      };
+      continue;
+    }
+    if (!cur) continue;
+    const vals = [];
+    for (let k = 3; k < f.length; k++) {
+      const s = f[k].trim();
+      if (s === '') continue;
+      vals.push(/^nan$/i.test(s) ? NaN : parseFloat(s));
+    }
+    rows.push({ sn: f[0] || '', op: f[1] || '', time: (f[2] || '').trim(), vals });
+  }
+  flush();
+  return out;
+}
+
+/* ===================== 整理成測項 ===================== */
+function buildItems(raw, p) {
+  const order = [], map = new Map();
+  for (const r of raw) {
+    let it = map.get(r.item);
+    if (!it) {
+      it = { name: r.item, kind: r.kind, xs: r.xs.slice(), xUnit: r.xUnit, yUnit: r.yUnit, logX: r.logX, lbl: r.lbl, recs: [] };
+      map.set(r.item, it); order.push(it);
+    }
+    let ys = r.ys;
+    if (it.kind === 'curve') {
+      const same = r.xs.length === it.xs.length && r.xs.every((x, i) => x === it.xs[i]);
+      if (!same) { const m = new Map(r.xs.map((x, i) => [x, r.ys[i]])); ys = it.xs.map(x => m.has(x) ? m.get(x) : NaN); }
+    } else ys = [r.ys[0]];
+    it.recs.push({ sn: r.sn, op: r.op, time: r.time, file: r.file, ys });
+  }
+  for (const it of order) {
+    if (p.latestOnly) {
+      const best = new Map();
+      for (const rc of it.recs) { const b = best.get(rc.sn); if (!b || rc.time >= b.time) best.set(rc.sn, rc); }
+      it.recs = [...best.values()];
+    }
+    it.recs.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : a.sn < b.sn ? -1 : a.sn > b.sn ? 1 : 0);
+  }
+  return order;
+}
+
+/* ===================== 上下限計算（核心） =====================
+   每個頻率點（單值測項就是那一個值）：
+   1. M = 中位數，MAD = median(|x − M|)，σr = 1.4826 × MAD
+   2. |x − M| > k·σr → 離群，不納入
+   3. 剩下的算 μ、σ（樣本標準差，n−1）
+   4. USL = μ + max(N·σ, 最小半寬)，LSL = μ − 同值                          */
+function pointStats(vals, unitMask, p, oneSided) {
+  const idx = [];
+  vals.forEach((v, i) => { if (Number.isFinite(v)) idx.push(i); });
+  const xs = idx.map(i => vals[i]), n = xs.length;
+  const M = median(xs);
+  const MAD = median(xs.map(x => Math.abs(x - M)));
+  let sr = 1.4826 * MAD, srNote = '';
+  if (n > 0 && !(sr > 0)) {
+    const meanAbs = xs.reduce((s, x) => s + Math.abs(x - M), 0) / n;
+    sr = 1.2533 * meanAbs;
+    if (sr > 0) srNote = 'MAD = 0（超過一半的值相同），改用 σr = 1.2533 × 平均絕對偏差';
+  }
+  const canDetect = n >= p.minN && sr > 0;
+  const out = new Set();
+  if (canDetect) for (const i of idx) if (Math.abs(vals[i] - M) > p.k * sr) out.add(i);
+  const unitEx = [];
+  const kept = idx.filter(i => {
+    if (out.has(i)) return false;
+    if (unitMask && unitMask[i]) { unitEx.push(i); return false; }
+    return true;
+  });
+  const kv = kept.map(i => vals[i]), nk = kv.length;
+  const mean = nk ? kv.reduce((s, x) => s + x, 0) / nk : NaN;
+  const sd = nk > 1 ? Math.sqrt(kv.reduce((s, x) => s + (x - mean) ** 2, 0) / (nk - 1)) : 0;
+  const halfRaw = p.N * sd, half = Math.max(halfRaw, p.minHalf);
+  return {
+    n, M, MAD, sr, srNote, canDetect, lo: M - p.k * sr, hi: M + p.k * sr,
+    out, unitEx, nk, mean, sd, halfRaw, half,
+    usl: mean + half, lsl: oneSided ? null : mean - half,
+  };
+}
+
+/* ---- 使用者設定（每個測項的手動上下限、測試頻點），以頻率值為 key ---- */
+const CFG_KEY = 'soundcheckTool.cfg.v1';
+function loadCfg() {
+  try {
+    const raw = localStorage.getItem(CFG_KEY);
+    if (!raw) localStorage.setItem('soundcheckTool.cfgver', '2');   // 沒有舊設定 = 新格式
+    return JSON.parse(raw) || {};
+  } catch (e) { return {}; }
+}
+function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(S.cfg)); } catch (e) { } }
+function getCfg(name) {
+  const c = S.cfg[name] || (S.cfg[name] = {});
+  c.off = c.off || {}; c.usl = c.usl || {}; c.lsl = c.lsl || {};
+  return c;
+}
+function bandList(cfg) {
+  return (cfg.bands || []).map((b, i) => ({ b, i })).filter(({ b }) => b.from !== '' && b.to !== '' && Number.isFinite(+b.from) && Number.isFinite(+b.to))
+    .map(({ b, i }) => ({ letter: String.fromCharCode(65 + (i % 26)), lo: Math.min(+b.from, +b.to), hi: Math.max(+b.from, +b.to), u: b.u === '' || b.u == null ? NaN : +b.u, l: b.l === '' || b.l == null ? NaN : +b.l }));
+}
+/* 四捨五入（與 Excel ROUND 相同：.5 進位、負數對稱），避免 134.95 → 134.9 的浮點誤差 */
+function roundTo(v, d) {
+  if (v == null || !Number.isFinite(v)) return v;
+  const sgn = v < 0 ? -1 : 1, a = Math.abs(v);
+  return sgn * Number(Math.round(Number(a + 'e' + d)) + 'e-' + d);
+}
+const fmtL = v => Number.isFinite(v) ? v.toFixed(S.p ? S.p.dec : 1) : '—';
+const ptKey = (it, j) => it.kind === 'curve' ? String(it.xs[j]) : 'v';
+
+function computeItem(it, p) {
+  const npts = it.kind === 'curve' ? it.xs.length : 1;
+  const cfg = getCfg(it.name);
+  it.oneSided = p.thdOneSided && (it.yUnit.trim() === '%' || /THD/i.test(it.name));
+  it.on = Array.from({ length: npts }, (_, j) => !cfg.off[ptKey(it, j)]);
+  it.nOn = it.on.filter(Boolean).length;
+  const colVals = j => it.recs.map(r => r.ys[j]);
+  let stats = [];
+  for (let j = 0; j < npts; j++) stats.push(pointStats(colVals(j), null, p, it.oneSided));
+  const oc = it.recs.map((r, i) => stats.reduce((c, s, j) => c + (it.on[j] && s.out.has(i) ? 1 : 0), 0));
+  const thr = Math.max(1, Math.min(p.minPts, it.nOn));
+  it.flagThr = thr;
+  const flagged = oc.map(c => c >= thr);
+  if (p.mode === 'unit' && flagged.some(Boolean)) {
+    stats = stats.map((_, j) => pointStats(colVals(j), flagged, p, it.oneSided));
+  }
+  // 優先順序：手動輸入（固定值）> 分段規則（每次依目前資料重算）> 自動計算
+  const rule = it.kind === 'curve' && cfg.bandActive ? bandList(cfg) : null;
+  const useMedian = cfg.bandRef === 'median';
+  stats.forEach((s, j) => {
+    const k = ptKey(it, j);
+    s.on = it.on[j]; s.autoUslRaw = s.usl; s.autoLslRaw = s.lsl;
+    s.autoUsl = roundTo(s.usl, p.dec); s.autoLsl = s.lsl == null ? null : roundTo(s.lsl, p.dec);
+    s.usl = s.autoUsl; s.lsl = s.autoLsl;
+    s.bandU = s.bandL = false; s.band = null;
+    if (rule) {
+      let b = null; rule.forEach(r => { if (it.xs[j] >= r.lo - 1e-9 && it.xs[j] <= r.hi + 1e-9) b = r; });
+      const base = useMedian ? s.M : s.mean;
+      if (b && Number.isFinite(base)) {
+        s.band = { letter: b.letter, u: b.u, l: b.l, base, ref: useMedian ? '中位數 M' : '平均 μ' };
+        if (Number.isFinite(b.u)) { s.bandUraw = base + b.u; s.usl = roundTo(s.bandUraw, p.dec); s.bandU = true; }
+        if (Number.isFinite(b.l)) { s.bandLraw = base - b.l; s.lsl = roundTo(s.bandLraw, p.dec); s.bandL = true; }
+      }
+    }
+    s.manU = Number.isFinite(cfg.usl[k]); s.manL = Number.isFinite(cfg.lsl[k]);
+    if (s.manU) { s.usl = cfg.usl[k]; s.bandU = false; }
+    if (s.manL) { s.lsl = cfg.lsl[k]; s.bandL = false; }
+    s.srcU = s.manU ? '手動' : s.bandU ? '分段' + s.band.letter : '自動';
+    s.srcL = s.lsl == null ? '' : s.manL ? '手動' : s.bandL ? '分段' + s.band.letter : '自動';
+  });
+  it.manualCount = stats.filter(s => s.manU || s.manL).length;
+  it.bandActive = !!rule;
+  it.stats = stats;
+  it.recs.forEach((r, i) => {
+    r.out = []; r.fail = []; r.worst = null;
+    for (let j = 0; j < npts; j++) {
+      if (!it.on[j]) continue;
+      const s = stats[j], v = r.ys[j];
+      if (s.out.has(i)) {
+        r.out.push(j);
+        const z = (v - s.M) / s.sr;
+        if (!r.worst || Math.abs(z) > Math.abs(r.worst.z)) r.worst = { j, v, z };
+      }
+      if (Number.isFinite(v) && Number.isFinite(s.usl) && (v > s.usl || (s.lsl != null && v < s.lsl))) r.fail.push(j);
+    }
+    r.flag = r.out.length >= thr;
+  });
+}
+
+/* ===================== 狀態 ===================== */
+const S = { snColors: new Map(), raw: [], fileCount: 0, skipped: [], items: [], tab: 'overview', selFreq: {}, selSn: null, chartOpt: {}, p: null, cfg: {} };
+S.cfg = loadCfg();
+function readParams() {
+  return {
+    k: Math.max(0.5, +$('#pK').value || 3.5),
+    N: Math.max(0.1, +$('#pN').value || 3),
+    minHalf: Math.max(0, +$('#pHalf').value || 0),
+    dec: (d => Number.isFinite(d) ? Math.max(0, Math.min(4, d)) : 1)(parseInt($('#pDec').value)),
+    minPts: Math.max(1, parseInt($('#pPts').value) || 3),
+    mode: $('#pMode').value,
+    latestOnly: $('#pLatest').checked,
+    thdOneSided: $('#pOneSided').checked,
+    minN: 5,
+  };
+}
+/* 每個序號固定一種顏色（避開紅色色相，紅色保留給上下限） */
+function snColor(sn) {
+  let c = S.snColors.get(sn);
+  if (!c) {
+    const i = S.snColors.size;
+    const h = 30 + ((240 + i * 137.508) % 360) * 0.75;      // 色相只用 30°～300°，避開紅色與桃紅色
+    const th = document.documentElement.getAttribute('data-theme');
+    const dark = th ? th === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+    const l = dark ? [62, 70, 55][i % 3] : [42, 52, 34][i % 3];  // 交替明度，鄰近色更好分辨
+    const sat = [70, 60, 80][Math.floor(i / 3) % 3];
+    c = `hsl(${h.toFixed(1)} ${sat}% ${l}%)`;
+    S.snColors.set(sn, c);
+  }
+  return c;
+}
+function recompute() {
+  if (!S.raw.length) return;
+  S.p = readParams();
+  S.items = buildItems(S.raw, S.p);
+  S.snColors = new Map();
+  const firstSeen = new Map();
+  S.items.forEach(it => it.recs.forEach(r => { const t = firstSeen.get(r.sn); if (t == null || r.time < t) firstSeen.set(r.sn, r.time); }));
+  [...firstSeen.entries()].sort((a, b) => a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0).forEach(([sn]) => snColor(sn));
+  S.items.forEach(it => computeItem(it, S.p));
+  if (S.tab !== 'overview' && !S.items.find(i => i.name === S.tab)) S.tab = 'overview';
+  S.calcAt = new Date();
+  renderBanner(); renderTabs(); renderContent();
+}
+
+/* ---- 手動固定上下限提醒（所有分頁都顯示） ---- */
+const VER_KEY = 'soundcheckTool.cfgver';
+function cfgIsOld() { try { return localStorage.getItem(VER_KEY) !== '2'; } catch (e) { return false; } }
+function markCfgNew() { try { localStorage.setItem(VER_KEY, '2'); } catch (e) { } }
+function renderBanner() {
+  const el = $('#banner'); if (!el) return;
+  const man = S.items.filter(it => it.manualCount);
+  let keep = false; try { keep = localStorage.getItem('soundcheckTool.keepFixed') === '1'; } catch (e) { }
+  if (!man.length || keep) { el.innerHTML = ''; return; }
+  const old = cfgIsOld();
+  const withBands = man.filter(it => it.kind === 'curve' && Array.isArray(getCfg(it.name).bands) && getCfg(it.name).bands.length);
+  el.innerHTML = `<div class="bn"><b class="t">注意：有手動固定的上下限，重新載入 log 時這些值不會改變。</b><br>
+    ${man.map(it => `${esc(it.name)}（${it.manualCount}${it.kind === 'curve' ? ' 點' : ''}）`).join('、')}
+    ${old ? `<br><span style="color:var(--text-2)">這些很可能是舊版「套用分段設定」存下來的固定數字。新版的分段設定改成規則，每次載入都會依新資料重算。</span>` : ''}
+    <div class="acts">
+      ${withBands.length ? `<button class="btn sm primary" id="bnToRule">清除固定值，改用分段規則（依資料重算）</button>` : ''}
+      <button class="btn sm${withBands.length ? '' : ' primary'}" id="bnClear">清除所有固定值（改回自動計算）</button>
+      <button class="btn sm" id="bnKeep">保留固定值</button>
+    </div></div>`;
+  const b1 = $('#bnToRule');
+  if (b1) b1.onclick = () => {
+    Object.keys(S.cfg).forEach(k => { const c = getCfg(k); c.usl = {}; c.lsl = {}; if (Array.isArray(c.bands) && c.bands.length && S.items.find(i => i.name === k && i.kind === 'curve')) c.bandActive = true; });
+    saveCfg(); markCfgNew(); recompute(); setStatus('已改用分段規則：' + withBands.map(i => i.name).join('、'));
+  };
+  $('#bnClear').onclick = () => { try { localStorage.removeItem('soundcheckTool.keepFixed'); } catch (e) { } Object.keys(S.cfg).forEach(k => { const c = getCfg(k); c.usl = {}; c.lsl = {}; }); saveCfg(); markCfgNew(); recompute(); setStatus('已清除所有手動固定上下限'); };
+  $('#bnKeep').onclick = () => { markCfgNew(); try { localStorage.setItem('soundcheckTool.keepFixed', '1'); } catch (e) { } renderBanner(); renderContent(); setStatus('已保留固定值（總覽分頁仍會列出哪些測項有固定值）'); };
+}
+
+/* ===================== 讀檔 ===================== */
+async function readFileText(file) {
+  const buf = await file.arrayBuffer();
+  const b = new Uint8Array(buf);
+  if (b[0] === 0xFF && b[1] === 0xFE) return new TextDecoder('utf-16le').decode(buf);
+  if (b[0] === 0xFE && b[1] === 0xFF) return new TextDecoder('utf-16be').decode(buf);
+  const t = new TextDecoder('utf-8').decode(buf);
+  return t.charCodeAt(0) === 0xFEFF ? t.slice(1) : t;
+}
+async function loadFiles(list) {
+  const exts = $('#pExt').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const files = list.filter(o => !exts.length || exts.some(e => o.path.toLowerCase().endsWith(e)));
+  if (!files.length) { setStatus('這個資料夾裡沒有符合副檔名的檔案'); return; }
+  S.raw = []; S.skipped = []; S.fileCount = files.length;
+  for (let i = 0; i < files.length; i++) {
+    const { file, path } = files[i];
+    try {
+      const recs = parseLog(await readFileText(file), path);
+      if (recs.length) S.raw.push(...recs); else S.skipped.push({ path, why: '找不到 Serial # 標頭' });
+    } catch (e) { S.skipped.push({ path, why: e.message }); }
+    if (i % 20 === 0 || i === files.length - 1) {
+      $('#prog').style.width = ((i + 1) / files.length * 100) + '%';
+      setStatus(`讀取中 ${i + 1} / ${files.length}`);
+      await new Promise(r => setTimeout(r));
+    }
+  }
+  setTimeout(() => $('#prog').style.width = '0', 400);
+  const sns = new Set(S.raw.map(r => r.sn));
+  const tm = new Date().toTimeString().slice(0, 8);
+  setStatus(`${tm} 已讀取並重新計算 ${files.length} 個檔案（${sns.size} 個序號）` + (S.skipped.length ? `，${S.skipped.length} 個無法解析` : ''));
+  $('#btnExport').disabled = !S.raw.length;
+  S.tab = 'overview'; S.selSn = null; S.selFreq = {};
+  recompute();
+  if (!S.raw.length) $('#content').innerHTML = `<div class="empty"><b>沒有解析到任何 Soundcheck 資料。</b><br>請確認檔案是 Tab 分隔、含「Serial #:」標頭的 Soundcheck 匯出 log。</div>`;
+}
+function setStatus(t) { $('#status').textContent = t; }
+
+$('#btnFolder').onclick = () => $('#inFolder').click();
+$('#inFolder').onchange = e => {
+  const list = [...e.target.files].map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
+  e.target.value = '';
+  loadFiles(list);
+};
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop' || !e.relatedTarget) drop.classList.remove('over'); }));
+document.addEventListener('drop', async e => {
+  const items = [...(e.dataTransfer.items || [])];
+  const out = [];
+  async function walk(entry) {
+    if (entry.isFile) {
+      const f = await new Promise((res, rej) => entry.file(res, rej));
+      out.push({ file: f, path: entry.fullPath.replace(/^\//, '') });
+    } else if (entry.isDirectory) {
+      const rd = entry.createReader(); let batch;
+      do { batch = await new Promise((res, rej) => rd.readEntries(res, rej)); for (const en of batch) await walk(en); } while (batch.length);
+    }
+  }
+  const entries = items.map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (entries.length) { setStatus('掃描資料夾…'); for (const en of entries) await walk(en); }
+  else [...e.dataTransfer.files].forEach(f => out.push({ file: f, path: f.name }));
+  loadFiles(out);
+});
+['#pK', '#pN', '#pHalf', '#pDec', '#pPts', '#pMode', '#pLatest', '#pOneSided'].forEach(s => $(s).addEventListener('change', recompute));
+
+/* ===================== 分頁 ===================== */
+function renderTabs() {
+  const nav = $('#tabs');
+  const flagCount = it => it.recs.filter(r => r.flag).length;
+  const allFlag = new Set(); S.items.forEach(it => it.recs.forEach(r => r.flag && allFlag.add(r.sn)));
+  let h = `<button data-t="overview" class="${S.tab === 'overview' ? 'active' : ''}">總覽 / 問題序號${allFlag.size ? `<span class="dot">${allFlag.size}</span>` : ''}</button>`;
+  S.items.forEach(it => {
+    const c = flagCount(it);
+    h += `<button data-t="${esc(it.name)}" class="${S.tab === it.name ? 'active' : ''}">${esc(it.name)}${c ? `<span class="dot">${c}</span>` : ''}</button>`;
+  });
+  nav.innerHTML = h;
+  nav.querySelectorAll('button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; renderTabs(); renderContent(); });
+}
+function renderContent() {
+  if (!S.items.length) return;
+  if (S.tab === 'overview') renderOverview();
+  else renderItem(S.items.find(i => i.name === S.tab));
+}
+function gotoItem(name, sn) {
+  S.tab = name; S.selSn = sn || null;
+  const it = S.items.find(i => i.name === name);
+  if (it && sn && it.kind === 'curve') {
+    const r = it.recs.find(r => r.sn === sn);
+    if (r && r.worst) S.selFreq[name] = r.worst.j;
+  }
+  renderTabs(); renderContent(); window.scrollTo({ top: 0 });
+}
+
+/* ===================== 總覽 ===================== */
+function renderOverview() {
+  const sns = []; const seen = new Set();
+  S.items.forEach(it => it.recs.forEach(r => { if (!seen.has(r.sn)) { seen.add(r.sn); sns.push({ sn: r.sn, time: r.time }); } }));
+  sns.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : 0);
+  const probs = [];
+  S.items.forEach(it => it.recs.forEach(r => { if (r.flag) probs.push({ it, r }); }));
+  const probSn = new Set(probs.map(p => p.r.sn));
+  probs.sort((a, b) => a.r.sn < b.r.sn ? -1 : a.r.sn > b.r.sn ? 1 : 0);
+
+  const manItems = S.items.filter(it => it.manualCount);
+  const bandItems = S.items.filter(it => it.bandActive);
+  let h = '';
+  if (manItems.length || bandItems.length) {
+    h += `<section class="card" style="border-color:var(--accent)"><h3>上下限設定狀態</h3>
+      ${bandItems.length ? `<div class="note" style="margin:0 0 4px"><span style="color:var(--ok);font-weight:600">分段規則（每次載入都依新資料重算）：</span>${bandItems.map(it => esc(it.name)).join('、')}</div>` : ''}
+      ${manItems.length ? `<div class="note" style="margin:0 0 6px"><span style="color:var(--accent);font-weight:600">手動固定上下限（不會隨新資料變動）：</span>${manItems.map(it => `${esc(it.name)}（${it.manualCount}${it.kind === 'curve' ? ' 點' : ''}）`).join('、')}</div>
+      <button class="btn sm" id="clearAllMan">清除所有測項的手動上下限</button>` : ''}
+    </section>`;
+  }
+  h += `<div class="kpis">
+    <div class="kpi"><div class="v">${S.fileCount}</div><div class="l">讀取檔案數</div></div>
+    <div class="kpi"><div class="v">${sns.length}</div><div class="l">序號數${S.p.latestOnly ? '（同序號取最新）' : ''}</div></div>
+    <div class="kpi"><div class="v">${S.items.length}</div><div class="l">測項數</div></div>
+    <div class="kpi ${probSn.size ? 'bad' : ''}"><div class="v">${probSn.size}</div><div class="l">問題序號數（有離群值）</div></div>
+  </div>`;
+
+  h += `<section class="card"><h3>問題序號清單</h3>
+    <div class="note" style="margin:0 0 8px">某序號在某測項的離群點數 ≥ ${S.p.minPts} 點就會列出（單值測項如 Sensitivity 為 1 點）。離群定義：|x − 中位數| > ${S.p.k}·σr，這些值${S.p.mode === 'unit' ? '和該序號整條資料都' : ''}不納入上下限計算。點一列可跳到該測項查看。</div>`;
+  if (!probs.length) h += `<p class="tag ok">沒有發現離群序號</p>`;
+  else {
+    h += `<div style="overflow:auto"><table class="list"><thead><tr><th>序號</th><th>測項</th><th>離群點數</th><th>最嚴重的點</th><th>偏離中位數</th><th>超出上下限點數</th><th>測試時間</th><th>檔案</th></tr></thead><tbody>`;
+    probs.forEach(({ it, r }) => {
+      const w = r.worst, s = it.stats[w.j];
+      const at = it.kind === 'curve' ? `${fmtF(it.xs[w.j])} Hz：` : '';
+      h += `<tr class="link" data-item="${esc(it.name)}" data-sn="${esc(r.sn)}"><td><b>${esc(r.sn)}</b></td><td>${esc(it.name)}</td>
+        <td><span class="tag bad">${r.out.length} / ${it.nOn}</span></td>
+        <td>${at}${fmt(w.v)} ${esc(it.yUnit)}（中位數 ${fmt(s.M)}）</td>
+        <td>${w.v - s.M >= 0 ? '+' : ''}${fmt(w.v - s.M)}（${w.z >= 0 ? '+' : ''}${fmt(w.z, 1)} σr）</td>
+        <td>${r.fail.length}</td><td>${esc(r.time)}</td><td class="skip">${esc(r.file)}</td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  }
+  h += `</section>`;
+
+  h += `<section class="card"><div class="card-h"><h3>每台測試結果總覽</h3>
+    <div class="legend"><span><span class="tag bad">離群 n</span> 有離群值（列為問題序號）</span><span><span class="tag warn">超限 n</span> 未離群但超出計算出的上下限</span><span><span class="tag ok">OK</span></span></div></div>
+    <div class="tbl-wrap"><table class="xl matrix"><thead><tr><th class="stk c0">#</th><th class="stk c1">序號</th>${S.items.map(it => `<th>${esc(it.name)}</th>`).join('')}</tr></thead><tbody>`;
+  const lookup = S.items.map(it => new Map(it.recs.map(r => [r.sn, r])));
+  sns.forEach((o, k) => {
+    h += `<tr><td class="stk c0">${k + 1}</td><td class="stk c1">${probSn.has(o.sn) ? `<b style="color:var(--bad)">${esc(o.sn)}</b>` : esc(o.sn)}</td>`;
+    S.items.forEach((it, ii) => {
+      const r = lookup[ii].get(o.sn);
+      if (!r) h += `<td style="text-align:center;color:var(--muted)">—</td>`;
+      else if (r.flag) h += `<td style="text-align:center"><a href="#" class="tag bad" data-item="${esc(it.name)}" data-sn="${esc(o.sn)}">離群 ${r.out.length}</a></td>`;
+      else if (r.fail.length) h += `<td style="text-align:center"><a href="#" class="tag warn" data-item="${esc(it.name)}" data-sn="${esc(o.sn)}">超限 ${r.fail.length}</a></td>`;
+      else h += `<td style="text-align:center"><span class="tag ok">OK</span></td>`;
+    });
+    h += `</tr>`;
+  });
+  h += `</tbody></table></div></section>`;
+
+  if (S.skipped.length) {
+    h += `<section class="card"><h3>無法解析的檔案（${S.skipped.length}）</h3><div class="skip">${S.skipped.map(s => esc(s.path) + ' — ' + esc(s.why)).join('<br>')}</div></section>`;
+  }
+  $('#content').innerHTML = h;
+  const cam = $('#clearAllMan');
+  if (cam) cam.onclick = () => { Object.values(S.cfg).forEach(c => { c.usl = {}; c.lsl = {}; }); saveCfg(); recompute(); setStatus('已清除所有手動上下限'); };
+  $('#content').querySelectorAll('[data-item]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); gotoItem(el.dataset.item, el.dataset.sn); }));
+}
+
+/* ===================== 單一測項頁 ===================== */
+function itemHeadHtml(it) {
+  const isC = it.kind === 'curve', npts = it.stats.length;
+  const flaggedN = it.recs.filter(r => r.flag).length;
+  return `<h2>${esc(it.name)}</h2>
+    <span class="chip">${isC ? '曲線 ' + npts + ' 點' : '單值'}</span>
+    <span class="chip">單位 ${esc(it.yUnit || '—')}</span>
+    <span class="chip">${it.recs.length} 台</span>
+    <span class="chip">${it.oneSided ? '單邊（只用上限）' : '雙邊上下限'}</span>
+    ${isC ? `<span class="chip">測試頻點 ${it.nOn} / ${npts}</span>` : it.nOn ? '' : '<span class="chip">未測試</span>'}
+    ${it.bandActive ? `<span class="chip" style="color:var(--ok)">分段規則啟用中</span>` : ''}
+    ${it.manualCount ? `<span class="chip" style="color:var(--accent)">手動固定上下限 ${it.manualCount} ${isC ? '點' : ''}</span>` : ''}
+    <span class="chip ${flaggedN ? 'bad' : ''}">問題序號 ${flaggedN}</span>`;
+}
+function flagListHtml(it) {
+  const f = it.recs.filter(r => r.flag);
+  return f.length ? `<b>本測項問題序號：</b> ${f.map(r => `<a href="#" data-sn="${esc(r.sn)}" class="tag bad">${esc(r.sn)}</a>`).join(' ')}` : '';
+}
+
+function renderItem(it) {
+  const p = S.p, isC = it.kind === 'curve';
+  const where = isC ? '每個頻率點 f' : '此測項';
+  const o = S.chartOpt[it.name] || (S.chartOpt[it.name] = { focus: false, normal: true });
+  const xmin = isC ? Math.min(...it.xs) : 0, xmax = isC ? Math.max(...it.xs) : 0;
+
+  $('#content').innerHTML = `
+  <div class="item-head" id="ihead">${itemHeadHtml(it)}</div>
+  <div class="grid2">
+    <section class="card"><h3>上下限計算方式</h3>
+      <ol class="method">
+        <li>對${where}收集所有序號的量測值 x₁ … xₙ</li>
+        <li>中位數 <span class="formula">M = median(xᵢ)</span>，<span class="formula">MAD = median(|xᵢ − M|)</span></li>
+        <li>穩健標準差 <span class="formula">σr = 1.4826 × MAD</span>（常態分佈下 σr ≈ σ）</li>
+        <li>若 <span class="formula">|xᵢ − M| &gt; k·σr</span>（k = ${p.k}）⇒ 判為離群值，<b>不納入計算</b>${p.mode === 'unit' ? '；問題序號的整條資料也排除' : ''}</li>
+        <li>剩下的 n′ 筆：<span class="formula">μ = Σxᵢ / n′</span>，<span class="formula">σ = √(Σ(xᵢ − μ)² / (n′ − 1))</span></li>
+        <li><span class="formula">USL = μ + N·σ</span>${it.oneSided ? '（THD 只取上限）' : '，<span class="formula">LSL = μ − N·σ</span>'}（N = ${p.N}${p.minHalf > 0 ? `；N·σ 小於 ${p.minHalf} 時用 ${p.minHalf}` : ''}）</li>
+        <li>算出的上下限（含分段規則）四捨五入到小數第 ${p.dec} 位，超限判定用四捨五入後的值；手動輸入的值不變</li>
+        <li>有手動輸入上下限的${isC ? '頻點' : '測項'}，判定改用手動值；取消勾選「測試」的頻點不判定</li>
+        <li>某序號在此測項（已勾選的頻點）的離群點數 ≥ ${it.flagThr} ⇒ 列為問題序號${it.flagThr < p.minPts ? '（點數不足，門檻自動降低）' : ''}</li>
+      </ol>
+      <div class="note">為什麼先用中位數 / MAD 篩選：平均值和標準差會被離群值本身拉偏，例如一台 −10 dB 的壞品會把 σ 撐大、讓上下限變鬆。中位數和 MAD 在壞品少於一半時幾乎不受影響，所以先用它們挑出離群值，再用乾淨的資料算 μ ± N·σ。樣本少於 ${p.minN} 筆時不做離群判定。</div>
+      <div class="note" id="flagList">${flagListHtml(it)}</div>
+    </section>
+    <section class="card" id="detail"></section>
+  </div>
+  <section class="card">
+    <div class="card-h"><h3>${isC ? '曲線圖' : '分佈圖'}</h3>
+      <div class="legend">
+        <span><span class="sw" style="border-color:var(--limit);border-top-width:2.5px"></span>${it.oneSided ? '上限 USL' : '上下限 USL / LSL'}</span>
+        <span>每個序號一種顏色（對照下方序號清單）</span>
+        <span><span class="sw" style="border-color:var(--text-2);border-top-width:3px"></span>粗線${isC ? '' : '／黑框點'} = 問題序號</span>
+        <span><span class="sw dash" style="border-color:var(--mean)"></span>平均 μ</span>
+        ${isC ? '<span><span class="swb" style="background:var(--muted);opacity:.3"></span>未測試頻點</span>' : ''}
+      </div>
+      <div class="ctl">
+        <label><input type="checkbox" id="cFocus" ${o.focus ? 'checked' : ''}> Y 軸聚焦上下限</label>
+        <label><input type="checkbox" id="cNormal" ${o.normal ? 'checked' : ''}> 顯示正常樣本</label>
+      </div></div>
+    <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
+    <div class="snlegend" id="snLegend"></div>
+    <div class="note">滑鼠移到${isC ? '曲線' : '點'}上可看序號與數值；點一下可選取該序號${isC ? '和頻率（右上方會顯示該頻率的計算明細）' : ''}。</div>
+  </section>
+  <section class="card">
+    <div class="card-h"><h3>上下限 / 測試頻點設定</h3></div>
+    ${isC ? `<div class="cfg-row"><span class="lbl">測試頻率範圍</span>
+      <input type="number" id="fFrom" value="${xmin}"> ~ <input type="number" id="fTo" value="${xmax}"> Hz
+      <button class="btn sm" id="bRange">只測這個範圍</button>
+      <button class="btn sm" id="bAllOn">全選</button>
+      <button class="btn sm" id="bAllOff">全部取消</button></div>` : ''}
+    ${isC ? `<div class="subhead">分段上下限（例如 A 頻段 ±3 dB、B 頻段 ±6 dB）</div>
+    <div class="note" style="margin:2px 0 4px"><b>這是規則，不是固定數值：</b>每次載入新的 log 都會用當下資料的基準重新算出上下限（表格中以綠字顯示）。每一列是一個頻段：上限 = 基準 + 上寬，下限 = 基準 − 下寬。上寬或下寬留空，那一邊就用自動計算值。起迄頻率都包含在內；頻段重疊時以下面那一列為準。沒有落在任何頻段的頻點，上下限不會變動。</div>
+    <table class="bands"><thead><tr><th></th><th>起 (Hz)</th><th>迄 (Hz)</th><th>上限 +</th><th>下限 −</th><th></th></tr></thead><tbody id="bandBody"></tbody></table>
+    <div class="cfg-row">
+      <span class="lbl" style="min-width:0">頻段數</span>
+      <span class="bandcount"><button id="bandMinus" title="減少一段（刪除最後一段）">−</button><input type="number" id="bandN" min="0" max="26"><button id="bandAdd" title="增加一段">＋</button></span>
+      <span class="lbl" style="min-width:0;margin-left:8px">基準</span>
+      <select id="bandRef"><option value="mean">平均 μ</option><option value="median">中位數 M</option></select>
+      <span class="lbl" style="min-width:0;margin-left:8px">套用到</span>
+      <select id="bandTarget"></select>
+      <label style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="bandOff"> 頻段以外的頻點設為不測</label>
+      <button class="btn sm primary" id="bandApply">套用分段設定</button>
+      <button class="btn sm" id="bandStop">停用分段規則</button>
+    </div>
+    <div class="subhead">其他批次設定</div>` : ''}
+    <div class="cfg-row"><span class="lbl">批次設定上下限</span>
+      <select id="bMode">
+        <option value="rel">平均 ± 寬度（依目前資料算好後固定成數值）</option>
+        <option value="abs">固定數值</option>
+        <option value="freeze">把目前自動值固定為手動值</option>
+      </select>
+      <span id="bInputs"><span id="bUl">上限 μ +</span> <input type="number" id="bU" step="0.1" value="${it.oneSided ? '' : '3'}">
+      <span id="bLl">下限 μ −</span> <input type="number" id="bL" step="0.1" value="${it.oneSided ? '' : '3'}"></span>
+      <button class="btn sm" id="bApply">套用到${isC ? '已勾選的頻點' : '此測項'}</button>
+      <button class="btn sm" id="bClear">清除本測項的手動上下限</button></div>
+    <div class="note">也可以在下方表格的「上限 USL / 下限 LSL」列逐格輸入：<b>空白（灰字）= 用自動計算值</b>，<b style="color:var(--accent)">藍字 = 手動值</b>，刪掉數字就回到自動值。按 Enter 移到右邊一格，Esc 取消；也可以從 Excel 複製一整列數字，貼到第一格。${isC ? '取消勾選「測試」的頻點不判定離群也不判定超限。' : ''}設定會記在這台電腦的瀏覽器裡（依測項名稱和頻率記錄），換電腦時請用上方「匯出設定 / 匯入設定」。</div>
+  </section>
+  <section class="card">
+    <div class="card-h"><h3>測試資料表</h3>
+      <div class="legend"><span><span class="swb" style="background:var(--bad-bg);border:1px solid var(--bad)"></span>離群（不納入計算）</span><span><span class="swb" style="background:var(--warn-bg);border:1px solid var(--warn)"></span>超出上下限</span>${isC ? '<span>點欄位標題可查看該頻率的計算明細</span>' : ''}</div></div>
+    <div class="tbl-wrap" id="tbl"></div>
+  </section>`;
+
+  $('#cFocus').onchange = e => { o.focus = e.target.checked; drawChart(it); };
+  $('#cNormal').onchange = e => { o.normal = e.target.checked; drawChart(it); };
+  $('#flagList').addEventListener('click', e => { const a = e.target.closest('a[data-sn]'); if (a) { e.preventDefault(); selectSn(it, a.dataset.sn, true); } });
+  bindCfgCard(it);
+  if (S.selFreq[it.name] == null) {
+    let j = 0;
+    if (isC) { let best = Infinity; it.xs.forEach((x, k) => { const d = Math.abs(Math.log(x / 1000)); if (d < best) { best = d; j = k; } }); }
+    S.selFreq[it.name] = j;
+  }
+  renderDetail(it);
+  drawChart(it);
+  renderTable(it);
+  if (S.selSn) scrollToRow(S.selSn);
+}
+
+/* ---- 設定卡片：頻率範圍、批次上下限 ---- */
+function bindCfgCard(it) {
+  const cfg = getCfg(it.name), isC = it.kind === 'curve';
+  const mode = $('#bMode');
+  const syncMode = () => {
+    const m = mode.value;
+    $('#bInputs').style.display = m === 'freeze' ? 'none' : '';
+    $('#bUl').textContent = m === 'rel' ? '上限 μ +' : '上限';
+    $('#bLl').textContent = m === 'rel' ? '下限 μ −' : '下限';
+  };
+  mode.onchange = syncMode; syncMode();
+  if (isC) bindBands(it);
+  if (isC) {
+    $('#bRange').onclick = () => {
+      const a = +$('#fFrom').value, b = +$('#fTo').value;
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      it.xs.forEach((x, j) => { const k = ptKey(it, j); if (x >= lo && x <= hi) delete cfg.off[k]; else cfg.off[k] = true; });
+      saveCfg(); refreshItem(it);
+    };
+    $('#bAllOn').onclick = () => setAllOn(it, true);
+    $('#bAllOff').onclick = () => setAllOn(it, false);
+  }
+  $('#bApply').onclick = () => {
+    const m = mode.value;
+    const u = $('#bU').value.trim() === '' ? NaN : +$('#bU').value;
+    const l = $('#bL').value.trim() === '' ? NaN : +$('#bL').value;
+    if (m !== 'freeze' && !Number.isFinite(u) && !Number.isFinite(l)) { alertMsg('請輸入上限或下限（留空的那一邊不會更動）'); return; }
+    const r3 = v => roundTo(v, S.p.dec);
+    it.stats.forEach((s, j) => {
+      if (!s.on) return;
+      const k = ptKey(it, j);
+      if (m === 'freeze') {
+        if (Number.isFinite(s.autoUsl)) cfg.usl[k] = r3(s.autoUsl);
+        if (s.autoLsl != null && Number.isFinite(s.autoLsl)) cfg.lsl[k] = r3(s.autoLsl);
+      } else if (m === 'rel') {
+        if (Number.isFinite(u) && Number.isFinite(s.mean)) cfg.usl[k] = r3(s.mean + u);
+        if (Number.isFinite(l) && Number.isFinite(s.mean)) cfg.lsl[k] = r3(s.mean - l);
+      } else {
+        if (Number.isFinite(u)) cfg.usl[k] = u;
+        if (Number.isFinite(l)) cfg.lsl[k] = l;
+      }
+    });
+    saveCfg(); refreshItem(it);
+  };
+  $('#bClear').onclick = () => { cfg.usl = {}; cfg.lsl = {}; saveCfg(); refreshItem(it); };
+}
+/* ---- 分段上下限 ---- */
+function bindBands(it) {
+  const cfg = getCfg(it.name);
+  const xmin = Math.min(...it.xs), xmax = Math.max(...it.xs);
+  if (!Array.isArray(cfg.bands)) {
+    const mid = it.xs.find(x => x >= 5000) || xmax;
+    cfg.bands = [{ from: xmin, to: mid, u: 3, l: it.oneSided ? '' : 3 }, { from: mid, to: xmax, u: 6, l: it.oneSided ? '' : 6 }];
+  }
+  const body = $('#bandBody');
+  const letter = i => String.fromCharCode(65 + (i % 26));
+  const draw = () => {
+    body.innerHTML = cfg.bands.map((b, i) => `<tr data-i="${i}"><td><b>${letter(i)}</b></td>
+      <td><input type="number" data-f="from" value="${esc(b.from)}"></td>
+      <td><input type="number" data-f="to" value="${esc(b.to)}"></td>
+      <td><input type="number" step="0.1" data-f="u" value="${esc(b.u)}"></td>
+      <td><input type="number" step="0.1" data-f="l" value="${esc(b.l)}"></td>
+      <td><button class="rb split" title="把這一段從中間分成兩段">分割</button><button class="rb del" title="刪除這一段">刪除</button></td></tr>`).join('')
+      || `<tr><td colspan="6" class="note">目前沒有頻段，按「＋」新增。</td></tr>`;
+    $('#bandN').value = cfg.bands.length;
+  };
+  draw();
+  let lrT;
+  const liveRefresh = () => { if (!cfg.bandActive) return; clearTimeout(lrT); lrT = setTimeout(() => refreshItem(it), 400); };
+  body.addEventListener('input', e => {
+    const inp = e.target.closest('input[data-f]'); if (!inp) return;
+    const i = +inp.closest('tr').dataset.i;
+    cfg.bands[i][inp.dataset.f] = inp.value.trim() === '' ? '' : +inp.value;
+    saveCfg(); liveRefresh();
+  });
+  body.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-i]'); if (!tr) return;
+    const i = +tr.dataset.i;
+    if (e.target.closest('.del')) { cfg.bands.splice(i, 1); saveCfg(); draw(); liveRefresh(); }
+    else if (e.target.closest('.split')) {
+      const b = cfg.bands[i], lo = Math.min(+b.from, +b.to), hi = Math.max(+b.from, +b.to);
+      const gm = Math.sqrt(Math.max(lo, 1e-6) * Math.max(hi, 1e-6));     // 對數中點，取最接近的量測頻點
+      let mid = it.xs.filter(x => x > lo && x < hi).sort((a, c) => Math.abs(Math.log(a / gm)) - Math.abs(Math.log(c / gm)))[0];
+      if (mid == null) mid = Math.round(gm);
+      cfg.bands.splice(i, 1, { ...b, from: lo, to: mid }, { ...b, from: mid, to: hi });
+      saveCfg(); draw(); liveRefresh();
+    }
+  });
+  const addBand = () => {
+    if (cfg.bands.length >= 26) return;
+    const last = cfg.bands[cfg.bands.length - 1];
+    if (last && +last.to < xmax) cfg.bands.push({ from: +last.to, to: xmax, u: last.u, l: last.l });
+    else if (last) {                       // 最後一段已到最高頻：把最後一段分成兩段
+      const lo = Math.min(+last.from, +last.to), hi = Math.max(+last.from, +last.to);
+      const gm = Math.sqrt(Math.max(lo, 1e-6) * Math.max(hi, 1e-6));
+      let mid = it.xs.filter(x => x > lo && x < hi).sort((a, c) => Math.abs(Math.log(a / gm)) - Math.abs(Math.log(c / gm)))[0];
+      if (mid == null) mid = Math.round(gm);
+      last.to = mid; cfg.bands.push({ from: mid, to: hi, u: last.u, l: last.l });
+    } else cfg.bands.push({ from: xmin, to: xmax, u: 3, l: it.oneSided ? '' : 3 });
+  };
+  $('#bandAdd').onclick = () => { addBand(); saveCfg(); draw(); liveRefresh(); };
+  $('#bandMinus').onclick = () => { cfg.bands.pop(); saveCfg(); draw(); liveRefresh(); };
+  $('#bandN').onchange = () => {
+    const n = Math.max(0, Math.min(26, parseInt($('#bandN').value) || 0));
+    if (n === cfg.bands.length) { $('#bandN').value = n; return; }
+    while (cfg.bands.length < n) addBand();
+    while (cfg.bands.length > n) cfg.bands.pop();
+    saveCfg(); draw(); liveRefresh();
+  };
+  const ref = $('#bandRef'); ref.value = cfg.bandRef || 'mean';
+  ref.onchange = () => { cfg.bandRef = ref.value; saveCfg(); liveRefresh(); };
+  const same = S.items.filter(o => o.kind === 'curve' && o.yUnit === it.yUnit);
+  $('#bandTarget').innerHTML = `<option value="self">本測項</option>` +
+    (same.length > 1 ? `<option value="unit">單位相同的曲線測項（${same.map(o => esc(o.name)).join(window.I18N && I18N.isEn ? ', ' : '、')}）</option>` : '');
+  $('#bandApply').onclick = () => {
+    const bands = bandList(cfg);
+    if (!bands.length) { alertMsg('請至少設定一個頻段的起迄頻率'); return; }
+    const targets = $('#bandTarget').value === 'unit' ? same : [it];
+    const offOutside = $('#bandOff').checked;
+    let cleared = 0;
+    targets.forEach(t => {
+      const c = getCfg(t.name);
+      if (t !== it) { c.bands = JSON.parse(JSON.stringify(cfg.bands)); c.bandRef = cfg.bandRef; }
+      c.bandActive = true;
+      t.xs.forEach((x, j) => {
+        const k = ptKey(t, j);
+        const inBand = bands.some(b => x >= b.lo - 1e-9 && x <= b.hi + 1e-9);
+        if (offOutside) { if (inBand) delete c.off[k]; else c.off[k] = true; }
+        if (inBand && (k in c.usl || k in c.lsl)) { delete c.usl[k]; delete c.lsl[k]; cleared++; }   // 讓規則生效
+      });
+    });
+    saveCfg();
+    recompute();
+    setStatus(`分段規則已啟用：${targets.map(t => t.name).join('、')}（每次載入都會依新資料重算）` + (cleared ? `，並清除頻段內 ${cleared} 個舊的手動值` : ''));
+  };
+  $('#bandStop').onclick = () => {
+    const targets = $('#bandTarget').value === 'unit' ? same : [it];
+    targets.forEach(t => { getCfg(t.name).bandActive = false; });
+    saveCfg(); recompute();
+    setStatus(`已停用分段規則：${targets.map(t => t.name).join('、')}`);
+  };
+}
+
+function setAllOn(it, on) {
+  const cfg = getCfg(it.name);
+  cfg.off = {};
+  if (!on) it.stats.forEach((_, j) => { cfg.off[ptKey(it, j)] = true; });
+  saveCfg(); refreshItem(it);
+}
+function alertMsg(t) { setStatus(t); const s = $('#status'); s.style.color = 'var(--bad)'; setTimeout(() => s.style.color = '', 2500); }
+
+/* 設定改變後只重算此測項並更新畫面，保留表格捲動位置與輸入焦點 */
+function refreshItem(it) {
+  setTimeout(() => {
+    const a = document.activeElement;
+    const fsel = a && a.dataset && a.dataset.lim ? `input[data-lim="${a.dataset.lim}"][data-j="${a.dataset.j}"]` : null;
+    const w = $('#tbl'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0;
+    computeItem(it, S.p);
+    renderTabs();
+    $('#ihead').innerHTML = itemHeadHtml(it);
+    $('#flagList').innerHTML = flagListHtml(it);
+    renderDetail(it); drawChart(it); renderTable(it);
+    const w2 = $('#tbl'); w2.scrollLeft = sl; w2.scrollTop = st;
+    if (fsel) { const e = w2.querySelector(fsel); if (e) { e.focus(); e.select(); } }
+  }, 0);
+}
+
+function renderDetail(it) {
+  const el = $('#detail'); if (!el) return;
+  const p = S.p, isC = it.kind === 'curve';
+  const j = S.selFreq[it.name] || 0, s = it.stats[j];
+  const u = esc(it.yUnit || '');
+  const exOut = [...s.out].map(i => it.recs[i]).sort((a, b) => Math.abs(b.ys[j] - s.M) - Math.abs(a.ys[j] - s.M));
+  const exList = exOut.map(r => `<a href="#" data-sn="${esc(r.sn)}">${esc(r.sn)}</a>（${fmt(r.ys[j])}，${r.ys[j] - s.M >= 0 ? '+' : ''}${fmt((r.ys[j] - s.M) / s.sr, 1)}σr）`).join('、');
+  const sel = isC ? `<select id="fqSel">${it.xs.map((x, k) => `<option value="${k}" ${k === j ? 'selected' : ''}>${fmtF(x)} Hz${it.on[k] ? '' : '（不測）'}</option>`).join('')}</select>` : '';
+  const halfTxt = s.half > s.halfRaw ? `最小半寬 ${fmt(s.half, 3)}` : `${p.N} × ${fmt(s.sd, 4)}`;
+  const rnd = (raw, v, bold) => `${fmt(raw, 3)} → 四捨五入 ${bold ? '<b>' : ''}${fmtL(v)}${bold ? '</b>' : ''}`;
+  const autoUt = b => `${fmt(s.mean, 3)} + ${halfTxt} = ${rnd(s.autoUslRaw, s.autoUsl, b)}`;
+  const autoLt = b => s.autoLsl == null ? '不適用（單邊）' : `${fmt(s.mean, 3)} − ${halfTxt} = ${rnd(s.autoLslRaw, s.autoLsl, b)}`;
+  const bandTxt = (side) => { const b = s.band, w = side === 'u' ? b.u : b.l, v = side === 'u' ? s.usl : s.lsl, raw = side === 'u' ? s.bandUraw : s.bandLraw;
+    return `<span style="color:var(--ok)">分段規則 ${b.letter}：${b.ref} ${fmt(b.base, 3)} ${side === 'u' ? '+' : '−'} ${fmt(w, 2)} = ${rnd(raw, v, true)}</span> ${u}<br><span style="color:var(--muted)">自動計算值：${side === 'u' ? autoUt(false) : autoLt(false)}</span>`; };
+  const uRow = s.bandU ? bandTxt('u') : s.manU ? `<span style="color:var(--accent)">手動設定 <b>${+s.usl.toFixed(4)}</b></span> ${u}<br><span style="color:var(--muted)">自動計算值：${autoUt(false)}</span>` : `${autoUt(true)} ${u}`;
+  const lRow = s.bandL ? bandTxt('l') : s.manL ? `<span style="color:var(--accent)">手動設定 <b>${+s.lsl.toFixed(4)}</b></span> ${u}<br><span style="color:var(--muted)">自動計算值：${autoLt(false)}</span>` : s.autoLsl == null ? autoLt(false) : `${autoLt(true)} ${u}`;
+  el.innerHTML = `<div class="card-h"><h3>計算明細</h3>${sel}</div>
+  <table class="detail-tbl">
+    ${s.on ? '' : `<tr><td>測試</td><td><span class="tag warn">此${isC ? '頻點' : '測項'}未勾選測試，不判定離群與超限</span></td></tr>`}
+    <tr><td>樣本數 n</td><td class="num">${s.n}</td></tr>
+    <tr><td>中位數 M</td><td class="num">${fmt(s.M, 3)} ${u}</td></tr>
+    <tr><td>MAD</td><td class="num">median(|xᵢ − ${fmt(s.M, 3)}|) = ${fmt(s.MAD, 4)}</td></tr>
+    <tr><td>σr</td><td class="num">${s.srNote ? esc(s.srNote) + ' = ' + fmt(s.sr, 4) : `1.4826 × ${fmt(s.MAD, 4)} = ${fmt(s.sr, 4)}`}</td></tr>
+    <tr><td>離群判定</td><td class="num">${s.canDetect ? `|x − M| &gt; ${p.k} × ${fmt(s.sr, 4)} = ${fmt(p.k * s.sr, 3)}<br>⇒ 合格範圍 [${fmt(s.lo, 3)}, ${fmt(s.hi, 3)}]` : `不判定（樣本 &lt; ${p.minN} 或資料完全相同）`}</td></tr>
+    <tr><td>排除離群</td><td>${exOut.length ? `${exOut.length} 筆：${exList}` : '無'}</td></tr>
+    ${s.unitEx.length ? `<tr><td>排除問題序號</td><td>${s.unitEx.length} 筆（整條排除模式）：${s.unitEx.map(i => esc(it.recs[i].sn)).join('、')}</td></tr>` : ''}
+    <tr><td>保留 n′</td><td class="num">${s.nk}</td></tr>
+    <tr><td>平均 μ</td><td class="num">${fmt(s.mean, 3)} ${u}</td></tr>
+    <tr><td>標準差 σ</td><td class="num">${fmt(s.sd, 4)}</td></tr>
+    <tr><td>上限 USL</td><td class="num">${uRow}</td></tr>
+    <tr><td>下限 LSL</td><td class="num">${lRow}</td></tr>
+  </table>`;
+  const fs = $('#fqSel');
+  if (fs) fs.onchange = () => selectFreq(it, +fs.value);
+  el.querySelectorAll('a[data-sn]').forEach(a => a.onclick = e => { e.preventDefault(); selectSn(it, a.dataset.sn, true); });
+}
+
+function selectFreq(it, j) {
+  S.selFreq[it.name] = j;
+  renderDetail(it);
+  document.querySelectorAll('#tbl .selc').forEach(e => e.classList.remove('selc'));
+  document.querySelectorAll(`#tbl th[data-j="${j}"], #tbl td[data-j="${j}"]`).forEach(e => e.classList.add('selc'));
+}
+function selectSn(it, sn, scroll) {
+  S.selSn = sn;
+  document.querySelectorAll('#chart .sel').forEach(e => e.classList.remove('sel'));
+  const i = it.recs.findIndex(r => r.sn === sn);
+  const m = document.querySelector(`#chart [data-i="${i}"]`);
+  if (m) { m.classList.add('sel'); m.parentNode.appendChild(m); }
+  document.querySelectorAll('#snLegend a.sel').forEach(e => e.classList.remove('sel'));
+  const la = document.querySelector(`#snLegend a[data-i="${i}"]`); if (la) la.classList.add('sel');
+  document.querySelectorAll('#tbl tr.sel').forEach(e => e.classList.remove('sel'));
+  const tr = document.querySelector(`#tbl tr[data-sn="${CSS.escape(sn)}"]`);
+  if (tr) tr.classList.add('sel');
+  if (scroll) scrollToRow(sn);
+}
+function scrollToRow(sn) {
+  const tr = document.querySelector(`#tbl tr[data-sn="${CSS.escape(sn)}"]`);
+  const wrap = $('#tbl');
+  if (tr && wrap) wrap.scrollTop = tr.offsetTop - wrap.clientHeight / 2;
+}
+
+/* ===================== 類 Excel 表格 ===================== */
+function renderTable(it) {
+  const isC = it.kind === 'curve', npts = it.stats.length, selJ = S.selFreq[it.name];
+  const cc = (j, extra = '') => { const c = [extra, it.on[j] ? '' : 'off', j === selJ ? 'selc' : ''].join(' ').trim(); return c ? ` class="${c}"` : ''; };
+  const cols = isC ? it.xs.map((x, j) => `<th class="fq ${j === selJ ? 'selc' : ''}" data-j="${j}">${fmtF(x)}</th>`).join('') : `<th>${esc(it.yUnit || '值')}</th>`;
+  let h = `<table class="xl"><thead><tr><th class="stk c0">#</th><th class="stk c1">${isC ? '序號 \\ Hz' : '序號'}</th><th style="text-align:left">結果</th><th style="text-align:left">測試時間</th>${cols}</tr></thead><tbody>`;
+  h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">測試</td><td colspan="2" class="hint"><label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--text);font-size:12px"><input type="checkbox" id="onAll"> 全選</label>　取消勾選 = 不判定</td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j, 'ctr')}><input type="checkbox" data-on="${j}" ${s.on ? 'checked' : ''} title="${isC ? fmtF(it.xs[j]) + ' Hz' : ''}"></td>`).join('')}</tr>`;
+  const limRow = (label, kind) => `<tr class="sum"><td class="stk c0"></td><td class="stk c1">${label}</td><td colspan="2" class="hint">灰字 = 自動；綠字 = 分段規則；藍字 = 手動</td>${it.stats.map((s, j) => {
+      const man = kind === 'usl' ? s.manU : s.manL;
+      const band = kind === 'usl' ? s.bandU : s.bandL;
+      const shown = band ? (kind === 'usl' ? s.usl : s.lsl) : (kind === 'usl' ? s.autoUsl : s.autoLsl);
+      const val = man ? +(kind === 'usl' ? s.usl : s.lsl).toFixed(4) : '';
+      return `<td data-j="${j}"${cc(j)}><input class="lim${man ? ' man' : band ? ' band' : ''}" inputmode="decimal" data-lim="${kind}" data-j="${j}" value="${val}" placeholder="${shown == null || !Number.isFinite(shown) ? '—' : fmtL(shown)}" title="${man ? '手動（固定值）' : band ? '分段規則 ' + s.band.letter : '自動計算'}"></td>`;
+    }).join('')}</tr>`;
+  h += limRow('上限 USL', 'usl');
+  h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">平均 μ</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${fmt(s.mean)}</td>`).join('')}</tr>`;
+  h += limRow('下限 LSL', 'lsl');
+  h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">標準差 σ</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${fmt(s.sd, 3)}</td>`).join('')}</tr>`;
+  h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">排除筆數</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${s.out.size + s.unitEx.length}</td>`).join('')}</tr>`;
+  it.recs.forEach((r, i) => {
+    const outS = new Set(r.out), failS = new Set(r.fail);
+    const st = r.flag ? `<td class="st-bad">問題（離群 ${r.out.length}）</td>` : (r.out.length || r.fail.length) ? `<td class="st-warn">${[r.out.length ? `離群 ${r.out.length}（未達門檻）` : '', r.fail.length ? `超限 ${r.fail.length}` : ''].filter(Boolean).join('、')}</td>` : `<td class="st-ok">OK</td>`;
+    h += `<tr class="r ${r.sn === S.selSn ? 'sel' : ''}" data-sn="${esc(r.sn)}"><td class="stk c0">${i + 1}</td><td class="stk c1"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}</td>${st}<td style="text-align:left">${esc(r.time)}</td>`;
+    for (let j = 0; j < npts; j++) h += `<td data-j="${j}"${cc(j, outS.has(j) ? 'o' : failS.has(j) ? 'f' : '')}>${fmt(r.ys[j])}</td>`;
+    h += `</tr>`;
+  });
+  h += `</tbody></table>`;
+  const wrap = $('#tbl'); wrap.innerHTML = h;
+  const cfg = getCfg(it.name);
+  wrap.querySelectorAll('th.fq').forEach(th => th.onclick = () => selectFreq(it, +th.dataset.j));
+  wrap.querySelectorAll('tr.r').forEach(tr => tr.onclick = e => {
+    const td = e.target.closest('td[data-j]');
+    if (td && isC) selectFreq(it, +td.dataset.j);
+    selectSn(it, tr.dataset.sn, false);
+  });
+  const onAll = $('#onAll');
+  onAll.checked = it.nOn === npts; onAll.indeterminate = it.nOn > 0 && it.nOn < npts;
+  onAll.onchange = () => { setAllOn(it, onAll.checked); };
+  wrap.querySelectorAll('input[data-on]').forEach(cb => cb.onchange = () => {
+    const k = ptKey(it, +cb.dataset.on);
+    if (cb.checked) delete cfg.off[k]; else cfg.off[k] = true;
+    saveCfg(); refreshItem(it);
+  });
+  const setLim = (kind, j, txt) => {
+    const k = ptKey(it, j), t = String(txt).trim().replace(/,/g, '');
+    if (t === '') { delete cfg[kind][k]; return true; }
+    const v = parseFloat(t);
+    if (!Number.isFinite(v)) return false;
+    cfg[kind][k] = v; return true;
+  };
+  wrap.querySelectorAll('input.lim').forEach(inp => {
+    const kind = inp.dataset.lim, j = +inp.dataset.j;
+    inp.addEventListener('focus', () => { if (isC) selectFreq(it, j); });
+    inp.addEventListener('change', () => {
+      if (!setLim(kind, j, inp.value)) { alertMsg('請輸入數字'); inp.value = ''; return; }
+      saveCfg(); refreshItem(it);
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const nx = wrap.querySelector(`input[data-lim="${kind}"][data-j="${j + 1}"]`);
+        if (nx) nx.focus(); else inp.blur();
+      } else if (e.key === 'Escape') {
+        const s = it.stats[j], man = kind === 'usl' ? s.manU : s.manL;
+        inp.value = man ? +(kind === 'usl' ? s.usl : s.lsl).toFixed(4) : '';
+        inp.blur();
+      }
+    });
+    inp.addEventListener('paste', e => {
+      const txt = (e.clipboardData || window.clipboardData).getData('text');
+      const parts = txt.split(/[\t\r\n]+/).filter(s => s.trim() !== '');
+      if (parts.length <= 1) return;
+      e.preventDefault();
+      let n = 0;
+      parts.forEach((s, d) => { if (j + d < npts && setLim(kind, j + d, s)) n++; });
+      saveCfg(); setStatus(`已貼上 ${n} 個${kind === 'usl' ? '上限' : '下限'}值`);
+      inp.blur(); refreshItem(it);
+    });
+  });
+}
+
+/* ===================== 圖表（SVG） ===================== */
+function niceTicks(a, b, n = 6) {
+  const span = b - a; if (!(span > 0)) return [a];
+  const step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0)), e = step0 / mag;
+  const step = (e >= 7.5 ? 10 : e >= 3.5 ? 5 : e >= 1.5 ? 2 : 1) * mag;
+  const t = []; for (let v = Math.ceil(a / step) * step; v <= b + step * 1e-6; v += step) t.push(+v.toFixed(10));
+  return t;
+}
+const fmtTick = v => Math.abs(v) >= 100 ? String(Math.round(v)) : String(+v.toFixed(3));
+
+function drawChart(it) {
+  const el = $('#chart'); if (!el) return;
+  const tip = $('#tip');
+  el.querySelectorAll('svg').forEach(s => s.remove());
+  const o = S.chartOpt[it.name];
+  const isC = it.kind === 'curve', R = it.recs.length;
+  const W = Math.max(360, el.clientWidth), H = isC ? 420 : 340;
+  const m = { l: 62, r: 44, t: 14, b: 46 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const xv = isC ? it.xs : it.recs.map((_, i) => i + 1);
+  const visible = r => r.flag || o.normal;
+
+  let X, logScale = false;
+  if (isC && it.logX && xv.every(x => x > 0)) {
+    logScale = true;
+    const a = Math.log10(Math.min(...xv)), b = Math.log10(Math.max(...xv));
+    X = x => m.l + (Math.log10(x) - a) / ((b - a) || 1) * pw;
+  } else if (isC) {
+    const a = Math.min(...xv), b = Math.max(...xv);
+    X = x => m.l + (x - a) / ((b - a) || 1) * pw;
+  } else X = x => m.l + (x - 0.5) / (R || 1) * pw;
+
+  let lo = Infinity, hi = -Infinity;
+  const acc = v => { if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
+  if (o.focus) {
+    it.stats.forEach(s => { if (s.on) { acc(s.usl); acc(s.lsl); acc(s.mean); } });
+    const sp = (hi - lo) || Math.abs(hi) * 0.1 || 1; lo -= sp * 0.35; hi += sp * 0.35;
+  } else {
+    it.recs.forEach(r => { if (visible(r)) r.ys.forEach(acc); });
+    it.stats.forEach(s => { if (s.on) { acc(s.usl); acc(s.lsl); } });
+    const sp = (hi - lo) || Math.abs(hi) * 0.1 || 1; lo -= sp * 0.06; hi += sp * 0.06;
+  }
+  if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+  const Y = v => m.t + (hi - v) / (hi - lo) * ph;
+
+  let g = '';
+  niceTicks(lo, hi, 6).forEach(t => {
+    const y = Y(t);
+    g += `<line class="grid" x1="${m.l}" x2="${m.l + pw}" y1="${y}" y2="${y}"/><text class="tick" x="${m.l - 8}" y="${y + 4}" text-anchor="end">${fmtTick(t)}</text>`;
+  });
+  if (logScale) {
+    const a = Math.min(...xv), b = Math.max(...xv);
+    for (let d = 10 ** Math.floor(Math.log10(a)); d <= b; d *= 10) {
+      for (let k = 1; k <= 9; k++) {
+        const x = d * k; if (x < a * 0.999 || x > b * 1.001) continue;
+        const px = X(x), major = k === 1 || k === 2 || k === 5;
+        g += `<line class="grid${major ? '' : ' minor'}" x1="${px}" x2="${px}" y1="${m.t}" y2="${m.t + ph}"/>`;
+        if (major) g += `<text class="tick" x="${px}" y="${m.t + ph + 16}" text-anchor="middle">${fmtF(x)}</text>`;
+      }
+    }
+  } else if (isC) {
+    niceTicks(Math.min(...xv), Math.max(...xv), 8).forEach(t => { const px = X(t); g += `<line class="grid" x1="${px}" x2="${px}" y1="${m.t}" y2="${m.t + ph}"/><text class="tick" x="${px}" y="${m.t + ph + 16}" text-anchor="middle">${fmtF(t)}</text>`; });
+  } else {
+    const step = Math.max(1, Math.ceil(R / 12));
+    for (let i = 1; i <= R; i += step) g += `<text class="tick" x="${X(i)}" y="${m.t + ph + 16}" text-anchor="middle">${i}</text>`;
+  }
+  g += `<line class="axis" x1="${m.l}" x2="${m.l + pw}" y1="${m.t + ph}" y2="${m.t + ph}"/><line class="axis" x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${m.t + ph}"/>`;
+  g += `<text class="albl" x="${m.l + pw / 2}" y="${H - 8}" text-anchor="middle">${isC ? `頻率（${esc(it.xUnit || 'Hz')}）` : '樣本（依測試時間排序）'}</text>`;
+  g += `<text class="albl" transform="translate(14,${m.t + ph / 2}) rotate(-90)" text-anchor="middle">${esc(it.name)}（${esc(it.yUnit || '')}）</text>`;
+
+  const pathFor = ys => {
+    let d = '', pen = false;
+    for (let j = 0; j < ys.length; j++) {
+      const v = ys[j];
+      if (!Number.isFinite(v)) { pen = false; continue; }
+      d += (pen ? 'L' : 'M') + X(xv[j]).toFixed(1) + ',' + Y(v).toFixed(1); pen = true;
+    }
+    return d;
+  };
+  let marks = '', lims = '';
+  const selI = it.recs.findIndex(r => r.sn === S.selSn);
+  if (isC) {
+    it.recs.forEach((r, i) => { if (!r.flag && o.normal) marks += `<path class="c n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(r.ys)}"/>`; });
+    it.recs.forEach((r, i) => { if (r.flag) marks += `<path class="c b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(r.ys)}"/>`; });
+    // 未測試頻點：灰色底
+    let bands = '';
+    const n = xv.length;
+    for (let j = 0; j < n; j++) {
+      if (it.on[j]) continue;
+      const x0 = j > 0 ? (X(xv[j - 1]) + X(xv[j])) / 2 : m.l, x1 = j < n - 1 ? (X(xv[j]) + X(xv[j + 1])) / 2 : m.l + pw;
+      bands += `<rect class="offband" x="${x0}" y="${m.t}" width="${Math.max(1, x1 - x0)}" height="${ph}"/>`;
+    }
+    marks = bands + marks;
+    const uArr = it.stats.map(s => s.on ? s.usl : NaN), lArr = it.stats.map(s => s.on && s.lsl != null ? s.lsl : NaN);
+    lims += `<path class="mean" d="${pathFor(it.stats.map(s => s.mean))}"/>`;
+    lims += `<path class="lim" d="${pathFor(uArr)}"/>`;
+    lims += `<path class="lim" d="${pathFor(lArr)}"/>`;
+    const lastOk = arr => { for (let j = arr.length - 1; j >= 0; j--) if (Number.isFinite(arr[j])) return j; return -1; };
+    const ju = lastOk(uArr), jl = lastOk(lArr);
+    if (ju >= 0) g += `<text class="limlbl" x="${X(xv[ju]) + 5}" y="${Y(uArr[ju]) + 4}">USL</text>`;
+    if (jl >= 0) g += `<text class="limlbl" x="${X(xv[jl]) + 5}" y="${Y(lArr[jl]) + 4}">LSL</text>`;
+  } else {
+    const s = it.stats[0];
+    const hline = (v, cls) => Number.isFinite(v) ? `<line class="${cls}" x1="${m.l}" x2="${m.l + pw}" y1="${Y(v)}" y2="${Y(v)}"/>` : '';
+    lims += hline(s.mean, 'mean');
+    if (s.on) {
+      lims += hline(s.usl, 'lim') + (s.lsl == null ? '' : hline(s.lsl, 'lim'));
+      if (Number.isFinite(s.usl)) g += `<text class="limlbl" x="${m.l + pw + 5}" y="${Y(s.usl) + 4}">USL</text>`;
+      if (s.lsl != null && Number.isFinite(s.lsl)) g += `<text class="limlbl" x="${m.l + pw + 5}" y="${Y(s.lsl) + 4}">LSL</text>`;
+    }
+    const rr = Math.max(3, Math.min(5, pw / R / 2.5));
+    it.recs.forEach((r, i) => { if (!r.flag && o.normal && Number.isFinite(r.ys[0])) marks += `<circle class="d n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr}"/>`; });
+    it.recs.forEach((r, i) => { if (r.flag && Number.isFinite(r.ys[0])) marks += `<circle class="d b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr + 1}"/>`; });
+  }
+  const cid = 'clp' + Math.random().toString(36).slice(2, 8);
+  const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs><clipPath id="${cid}"><rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}"/></clipPath></defs>
+    ${g}
+    <g clip-path="url(#${cid})"><g class="marks">${marks}</g>${lims}
+      <line class="xh" id="xh" x1="0" x2="0" y1="${m.t}" y2="${m.t + ph}" style="display:none"/></g>
+    <circle class="ptmark" id="ptm" r="6" cx="0" cy="0" style="display:none"/>
+    <rect class="ov" x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="transparent"/>
+  </svg>`;
+  el.insertAdjacentHTML('afterbegin', svg);
+  const lg = $('#snLegend');
+  if (lg) {
+    const shown = it.recs.map((r, i) => ({ r, i })).filter(({ r }) => visible(r));
+    lg.innerHTML = shown.length ? shown.map(({ r, i }) => `<a href="#" data-i="${i}" class="${r.flag ? 'bad' : ''}${r.sn === S.selSn ? ' sel' : ''}" title="${r.flag ? '問題序號' : ''}"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}</a>`).join('') : '<span class="note">沒有顯示中的序號</span>';
+    lg.onclick = e => { const a = e.target.closest('a[data-i]'); if (!a) return; e.preventDefault(); selectSn(it, it.recs[+a.dataset.i].sn, true); if (el._showTip) el._showTip(+a.dataset.i); };
+    lg.onmouseover = e => { const a = e.target.closest('a[data-i]'); if (!a) return; const m = el.querySelector(`.marks [data-i="${a.dataset.i}"]`); if (m) { el.classList.add('dim'); m.classList.add('hl'); m.parentNode.appendChild(m); } };
+    lg.onmouseout = e => { const a = e.target.closest('a[data-i]'); if (!a) return; el.classList.remove('dim'); el.querySelectorAll('.marks .hl').forEach(m => m.classList.remove('hl')); };
+  }
+  const svgEl = el.querySelector('svg'), ov = svgEl.querySelector('.ov'), xh = svgEl.querySelector('#xh'), mg = svgEl.querySelector('.marks'), ptm = svgEl.querySelector('#ptm');
+  let hlEl = null, last = null;
+
+  function pick(e) {
+    const rc = svgEl.getBoundingClientRect(), px = e.clientX - rc.left, py = e.clientY - rc.top;
+    let j = 0, i = -1;
+    if (isC) {
+      let best = Infinity; xv.forEach((x, k) => { const d = Math.abs(X(x) - px); if (d < best) { best = d; j = k; } });
+      let bd = Infinity; it.recs.forEach((r, k) => { if (!visible(r)) return; const v = r.ys[j]; if (!Number.isFinite(v)) return; const d = Math.abs(Y(v) - py); if (d < bd) { bd = d; i = k; } });
+    } else {
+      let bd = Infinity; it.recs.forEach((r, k) => { if (!visible(r)) return; const v = r.ys[0]; if (!Number.isFinite(v)) return; const d = Math.hypot(X(k + 1) - px, Y(v) - py); if (d < bd) { bd = d; i = k; } });
+    }
+    return { j, i, px, py };
+  }
+  ov.addEventListener('mousemove', e => {
+    const { j, i, px, py } = pick(e); last = { j, i };
+    if (isC) { xh.style.display = ''; xh.setAttribute('x1', X(xv[j])); xh.setAttribute('x2', X(xv[j])); }
+    if (hlEl) hlEl.classList.remove('hl');
+    hlEl = i >= 0 ? mg.querySelector(`[data-i="${i}"]`) : null;
+    if (hlEl) { hlEl.classList.add('hl'); mg.appendChild(hlEl); el.classList.add('dim'); } else el.classList.remove('dim');
+    if (i < 0) { tip.style.display = 'none'; ptm.style.display = 'none'; return; }
+    ptm.style.display = 'none';
+    showTip(i, j, px, py);
+  });
+  function showTip(i, j, px, py) {
+    const s = it.stats[j];
+    const r = it.recs[i], v = r.ys[j];
+    const state = !s.on ? '<span class="tag warn">未測試頻點</span>' : s.out.has(i) ? '<span class="tag bad">離群（不納入計算）</span>' : (Number.isFinite(s.usl) && (v > s.usl || (s.lsl != null && v < s.lsl))) ? '<span class="tag warn">超出上下限</span>' : '<span class="tag ok">正常</span>';
+    tip.innerHTML = `<span class="sncol" style="--c:${snColor(r.sn)}"></span><b>${esc(r.sn)}</b> ${state}<br>${isC ? `f = ${fmtF(xv[j])} Hz　` : ''}值 = <b>${fmt(v)}</b> ${esc(it.yUnit)}<br><span class="s">USL ${s.manU ? +s.usl.toFixed(4) : fmtL(s.usl)}　μ ${fmt(s.mean)}${s.lsl != null ? '　LSL ' + (s.manL ? +s.lsl.toFixed(4) : fmtL(s.lsl)) : ''}${s.manU || s.manL ? '（手動）' : ''}</span><br><span class="s">${esc(r.time)}</span>`;
+    tip.style.display = 'block';
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.max(0, Math.min(W - tw - 4, px + 14)) + 'px';
+    tip.style.top = Math.max(0, py - th - 10) + 'px';
+  }
+  // 從下方序號清單點選時：在目前選取的頻率（右上「計算明細」的頻率）上標出該台並顯示同樣的資訊框
+  el._showTip = i => {
+    const r = it.recs[i]; if (!r) return;
+    let j = isC ? (S.selFreq[it.name] || 0) : 0;
+    if (isC && !Number.isFinite(r.ys[j])) { let best = Infinity; r.ys.forEach((v, k) => { if (Number.isFinite(v) && Math.abs(k - j) < best) { best = Math.abs(k - j); j = k; } }); }
+    const v = r.ys[j]; if (!Number.isFinite(v)) return;
+    const px = isC ? X(xv[j]) : X(i + 1), py = Math.max(m.t, Math.min(m.t + ph, Y(v)));
+    if (isC) { xh.style.display = ''; xh.setAttribute('x1', px); xh.setAttribute('x2', px); }
+    ptm.setAttribute('cx', px); ptm.setAttribute('cy', py); ptm.style.setProperty('--c', snColor(r.sn)); ptm.style.display = '';
+    showTip(i, j, px, py);
+    const hb = document.querySelector('header').getBoundingClientRect().bottom;
+    const tt = tip.getBoundingClientRect().top;
+    if (tt < hb + 6) window.scrollBy({ top: tt - hb - 12, behavior: 'smooth' });
+  };
+  ov.addEventListener('mouseleave', () => { el.classList.remove('dim'); tip.style.display = 'none'; ptm.style.display = 'none'; xh.style.display = 'none'; if (hlEl) hlEl.classList.remove('hl'); hlEl = null; });
+  ov.addEventListener('click', () => {
+    if (!last || last.i < 0) return;
+    if (isC) selectFreq(it, last.j);
+    selectSn(it, it.recs[last.i].sn, true);
+  });
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('#chart') || e.target.closest('#snLegend')) return;
+  const t = $('#tip'), pm = document.querySelector('#chart #ptm'), x = document.querySelector('#chart #xh');
+  if (t) t.style.display = 'none'; if (pm) pm.style.display = 'none'; if (x) x.style.display = 'none';
+});
+let rzT;
+new ResizeObserver(() => { clearTimeout(rzT); rzT = setTimeout(() => { if (S.tab !== 'overview') { const it = S.items.find(i => i.name === S.tab); if (it) drawChart(it); } }, 150); }).observe($('main'));
+
+/* ===================== 匯出 Excel（SpreadsheetML，可多工作表） ===================== */
+function xmlEsc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function cell(v, style) {
+  const st = style ? ` ss:StyleID="${style}"` : '';
+  if (v == null || v === '') return `<Cell${st}/>`;
+  if (typeof v === 'number') return Number.isFinite(v) ? `<Cell${st}><Data ss:Type="Number">${v}</Data></Cell>` : `<Cell${st}/>`;
+  return `<Cell${st}><Data ss:Type="String">${xmlEsc(v)}</Data></Cell>`;
+}
+function sheet(name, rows) {
+  const safe = name.replace(/[\[\]:*?\/\\]/g, '_').slice(0, 31);
+  return `<Worksheet ss:Name="${xmlEsc(safe)}"><Table>${rows.map(r => `<Row>${r.map(c => c && typeof c === 'object' ? cell(c.v, c.s) : cell(c)).join('')}</Row>`).join('')}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><SplitVertical>1</SplitVertical><LeftColumnRightPane>1</LeftColumnRightPane></WorksheetOptions></Worksheet>`;
+}
+function exportExcel() {
+  /* Excel 一律用 log 本身的文字（測項名稱、Serial # / Operator / Time、單位），不隨網頁語言翻譯 */
+  const p = S.p, H = s => ({ v: s, s: 'h' });
+  const L = (S.items[0] && S.items[0].lbl) || { sn: 'Serial #', op: 'Operator', time: 'Time' };
+  const xu = it => it.xUnit || 'Hz';
+  const src = t => !t ? '' : t === '手動' ? 'Manual' : t === '自動' ? 'Auto' : t.replace(/^分段/, 'Band ');
+  const resultTxt = r => r.flag ? `Outlier ${r.out.length}` : r.fail.length ? `Out of limit ${r.fail.length}` : 'OK';
+  const sheets = [];
+  const prob = [[H(L.sn), H('Item'), H('Outlier points'), H('Points'), H('Worst point'), H('Value'), H('Unit'), H('Median'), H('Deviation (σr)'), H('Out-of-limit points'), H(L.time), H('File')]];
+  S.items.forEach(it => it.recs.forEach(r => {
+    if (!r.flag) return;
+    const w = r.worst, s = it.stats[w.j];
+    prob.push([r.sn, it.name, r.out.length, it.nOn, it.kind === 'curve' ? `${it.xs[w.j]} ${xu(it)}` : '', w.v, it.yUnit, s.M, +w.z.toFixed(2), r.fail.length, r.time, r.file]);
+  }));
+  prob.push([]);
+  prob.push([`Settings: k=${p.k}, N=${p.N}, min half-width=${p.minHalf}, decimals=${p.dec}, problem threshold>=${p.minPts} points, exclusion=${p.mode === 'unit' ? 'whole problem unit' : 'outlier points only'}, latest record per serial=${p.latestOnly ? 'yes' : 'no'}`]);
+  prob.push(['Method: M=median, MAD=median(|x-M|), σr=1.4826×MAD; |x-M|>k·σr is an outlier and left out; mean μ and std dev σ (n-1) from the rest; USL=μ+N·σ, LSL=μ-N·σ, rounded']);
+  sheets.push(sheet('Problem serials', prob));
+
+  const lim = [[H('Item'), H('Frequency'), H('Unit'), H('Test'), H('n'), H('Median'), H('MAD'), H('σr'), H('Excluded'), H('n′'), H('Mean'), H('Std dev'), H('Auto USL'), H('Auto LSL'), H('USL'), H('USL source'), H('LSL'), H('LSL source')]];
+  S.items.forEach(it => it.stats.forEach((s, j) => lim.push([it.name, it.kind === 'curve' ? it.xs[j] : '', it.yUnit, s.on ? 'Y' : 'N', s.n, s.M, s.MAD, s.sr, s.out.size + s.unitEx.length, s.nk, s.mean, s.sd,
+    s.autoUsl, s.autoLsl == null ? '' : s.autoLsl,
+    { v: s.usl, s: s.manU ? 'm' : null }, src(s.srcU), { v: s.lsl == null ? '' : s.lsl, s: s.manL ? 'm' : null }, src(s.srcL)])));
+  sheets.push(sheet('Limits', lim));
+
+  const transpose = $('#pDir') && $('#pDir').value === 'col';
+  S.items.forEach(it => {
+    const isC = it.kind === 'curve';
+    const lbl = it.lbl || L;
+    const hasOp = it.recs.some(r => r.op);
+    const lead = hasOp ? 3 : 2;                         // Serial # / (Operator) / Time
+    const pad = n => Array(n).fill('');
+    let rows = [[H(lbl.sn), ...(hasOp ? [H(lbl.op)] : []), H(lbl.time), H('Result'), ...(isC ? it.xs.map(x => H(x)) : [H(it.yUnit || 'Value')])]];
+    if (isC) rows.push([H(xu(it)), ...pad(lead), ...it.xs.map(() => it.yUnit)]);
+    rows.push([H('Test'), ...pad(lead), ...it.stats.map(s => s.on ? 1 : 0)]);
+    rows.push([H('USL'), ...pad(lead), ...it.stats.map(s => ({ v: s.on ? s.usl : '', s: s.manU ? 'm' : null }))]);
+    rows.push([H('Mean'), ...pad(lead), ...it.stats.map(s => s.mean)]);
+    rows.push([H('LSL'), ...pad(lead), ...it.stats.map(s => ({ v: s.on && s.lsl != null ? s.lsl : '', s: s.manL ? 'm' : null }))]);
+    it.recs.forEach(r => {
+      const o = new Set(r.out), f = new Set(r.fail);
+      rows.push([r.sn, ...(hasOp ? [r.op] : []), r.time, resultTxt(r), ...r.ys.map((v, j) => ({ v, s: o.has(j) ? 'o' : f.has(j) ? 'f' : null }))]);
+    });
+    if (transpose) rows = rows[0].map((_, c) => rows.map(r => r[c] === undefined ? '' : r[c]));
+    sheets.push(sheet(it.name, rows));
+  });
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles><Style ss:ID="h"><Font ss:Bold="1"/><Interior ss:Color="#EEEEEE" ss:Pattern="Solid"/></Style>
+<Style ss:ID="o"><Font ss:Bold="1" ss:Color="#9C0006"/><Interior ss:Color="#FFC7CE" ss:Pattern="Solid"/></Style>
+<Style ss:ID="f"><Font ss:Color="#9C5700"/><Interior ss:Color="#FFEB9C" ss:Pattern="Solid"/></Style>
+<Style ss:ID="m"><Font ss:Bold="1" ss:Color="#1F5FBF"/></Style></Styles>
+${sheets.join('\n')}</Workbook>`;
+  const blob = new Blob(['﻿' + xml], { type: 'application/vnd.ms-excel' });
+  const a = document.createElement('a');
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  a.download = `soundcheck_report_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.xls`;
+  a.href = URL.createObjectURL(blob); document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+$('#btnExport').onclick = exportExcel;
+
+/* ---- 設定說明（點 ! 才顯示） ---- */
+const HELP = {
+  ext: ['副檔名', `選資料夾時只讀這種副檔名的檔案，其他檔案略過。`, `要讀多種副檔名用逗號隔開，例如 <b>.txt,.log</b>。留空就是讀全部檔案。`],
+  k: ['離群倍數 k', `判斷「差太多」的標準：某台的值和中位數相差超過 <b>k × σr</b>（穩健標準差）就算離群，<b>不納入上下限計算</b>。`,
+      `<ul><li>k 越小越嚴格，抓出的離群越多</li><li>k 越大越寬鬆</li><li>常用 3～3.5</li></ul>`],
+  N: ['上下限 N·σ', `自動上下限的寬度：<br><b>上限 = 平均 + N × 標準差</b><br><b>下限 = 平均 − N × 標準差</b>`,
+      `N 越大上下限越寬。只影響灰字的自動值，不影響綠字的分段規則和藍字的手動值。`],
+  half: ['最小半寬', `避免上下限窄得不合理：如果算出的 N·σ 比這個數字小，就改用這個數字。`,
+      `<div class="eg">例：設 1，FR 的上下限至少是平均 ± 1 dB。0 表示不使用。</div>`],
+  dec: ['上下限小數位數', `自動計算和分段規則算出的上下限，四捨五入到小數第幾位（預設 1 位，例如 134.614 → 134.6）。`,
+      `<ul><li>超限判定用四捨五入後的值</li><li>手動輸入的藍字不會被四捨五入</li><li>平均、標準差等計算過程不受影響</li></ul>`],
+  pts: ['問題門檻', `一台在某個測項裡要有幾個頻點離群，才列入「問題序號」。`,
+      `<ul><li>設 1 最嚴格，只要一點離群就列入</li><li>Sensitivity 這類單值測項只有 1 點，會自動用 1</li><li>只計算有勾選「測試」的頻點</li></ul>`],
+  mode: ['排除方式', `離群的資料怎麼從上下限計算中排除：`,
+      `<ul><li><b>只排除離群的點</b>：只拿掉那幾個離群值，同一台其他正常的點還是會算進去</li><li><b>問題序號整條排除</b>：被列為問題序號的那一台，整條曲線都不算進上下限</li></ul>`],
+  latest: ['同序號只取最新一筆', `同一個序號測過好幾次（例如重測）時，只用時間最新的那一筆，舊的不算。`,
+      `取消勾選 = 每一筆都算（同序號會出現多列）。`],
+  onesided: ['THD（%）只算上限', `THD 越小越好，所以預設只判上限、不設下限。`, `取消勾選 = 和其他測項一樣上下限都判。`],
+  dir: ['匯出方向', `只影響「匯出 Excel」的排法：`,
+      `<ul><li><b>序號為列</b>：一台一列，頻率在欄位上（同網頁表格）</li><li><b>序號為欄</b>：一台一欄，頻率在列上（同原本 C# 程式產生的 Excel）</li></ul>`],
+};
+const helpPop = document.createElement('div');
+helpPop.id = 'helpPop'; helpPop.setAttribute('role', 'dialog');
+document.body.appendChild(helpPop);
+let helpBtn = null;
+function closeHelp() { helpPop.style.display = 'none'; if (helpBtn) helpBtn.classList.remove('on'); helpBtn = null; }
+function openHelp(btn) {
+  const h = HELP[btn.dataset.help]; if (!h) return;
+  if (helpBtn === btn) { closeHelp(); return; }
+  closeHelp();
+  helpBtn = btn; btn.classList.add('on');
+  helpPop.innerHTML = `<button class="x" aria-label="關閉">×</button><h4>${h[0]}</h4><div>${h[1]}</div><div style="margin-top:6px">${h[2] || ''}</div>`;
+  helpPop.style.display = 'block';
+  const r = btn.getBoundingClientRect(), pw = helpPop.offsetWidth, ph = helpPop.offsetHeight;
+  let left = Math.min(Math.max(12, r.left - 12), window.innerWidth - pw - 12);
+  let top = r.bottom + 8;
+  if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 8);
+  helpPop.style.left = left + 'px'; helpPop.style.top = top + 'px';
+  helpPop.querySelector('.x').onclick = closeHelp;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button.info');
+  if (b) { e.preventDefault(); e.stopPropagation(); openHelp(b); return; }
+  if (!e.target.closest('#helpPop')) closeHelp();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
+window.addEventListener('resize', closeHelp);
+
+/* ---- 設定檔匯出 / 匯入 ---- */
+function downloadText(name, text, type) {
+  const a = document.createElement('a');
+  a.download = name; a.href = URL.createObjectURL(new Blob([text], { type }));
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+$('#btnCfgOut').onclick = () => {
+  const items = {};
+  Object.entries(S.cfg).forEach(([k, c]) => {
+    const off = Object.keys(c.off || {}), usl = c.usl || {}, lsl = c.lsl || {};
+    if (off.length || Object.keys(usl).length || Object.keys(lsl).length || (c.bands && c.bands.length) || c.bandActive) items[k] = { off: Object.fromEntries(off.map(x => [x, true])), usl, lsl, bands: c.bands || [], bandRef: c.bandRef || 'mean', bandActive: !!c.bandActive };
+  });
+  if (!Object.keys(items).length) { alertMsg('目前沒有任何手動上下限或測試頻點設定'); return; }
+  const params = readParams();
+  downloadText('soundcheck_limits_config.json', JSON.stringify({ tool: 'soundcheck-log-tool', version: 1, saved: new Date().toISOString(), params, items }, null, 1), 'application/json');
+};
+$('#btnCfgIn').onclick = () => $('#inCfg').click();
+$('#inCfg').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    const items = j.items || j;
+    if (typeof items !== 'object') throw new Error('格式不對');
+    S.cfg = {};
+    Object.entries(items).forEach(([k, c]) => {
+      const clean = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => Number.isFinite(+v)).map(([x, v]) => [x, +v]));
+      const bands = Array.isArray(c.bands) ? c.bands.map(b => ({ from: +b.from, to: +b.to, u: b.u === '' || b.u == null ? '' : +b.u, l: b.l === '' || b.l == null ? '' : +b.l })).filter(b => Number.isFinite(b.from) && Number.isFinite(b.to)) : [];
+      S.cfg[String(k)] = { off: Object.fromEntries(Object.keys(c.off || {}).map(x => [x, true])), usl: clean(c.usl), lsl: clean(c.lsl), bands, bandRef: c.bandRef === 'median' ? 'median' : 'mean', bandActive: !!c.bandActive };
+    });
+    if (j.params) {
+      const P = j.params;
+      if (P.k) $('#pK').value = P.k; if (P.N) $('#pN').value = P.N; if (P.minHalf != null) $('#pHalf').value = P.minHalf;
+      if (P.dec != null) $('#pDec').value = P.dec;
+      if (P.minPts) $('#pPts').value = P.minPts; if (P.mode) $('#pMode').value = P.mode;
+      if (P.latestOnly != null) $('#pLatest').checked = P.latestOnly; if (P.thdOneSided != null) $('#pOneSided').checked = P.thdOneSided;
+    }
+    saveCfg();
+    setStatus(`已匯入設定：${Object.keys(S.cfg).length} 個測項`);
+    recompute();
+  } catch (err) { alertMsg('設定檔讀取失敗：' + err.message); }
+};
+(() => { // Excel 方向選項（同原 C# 程式的「序號為欄」）
+  const lab = document.createElement('label');
+  lab.innerHTML = `匯出方向 <select id="pDir"><option value="row">序號為列</option><option value="col">序號為欄（同原程式）</option></select>`;
+  const wrap = document.createElement('span'); wrap.className = 'set';
+  wrap.appendChild(lab);
+  wrap.insertAdjacentHTML('beforeend', '<button type="button" class="info" data-help="dir" aria-label="匯出方向說明">!</button>');
+  $('.settings').appendChild(wrap);
+})();
+</script>
+</body>
+</html>
