@@ -5,6 +5,7 @@
 <script src="i18n.js"></script><script src="i18n/bus.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公車直達查詢｜兩站之間有哪些公車</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <meta name="description" content="輸入上車、下車地點，找出兩邊步行範圍內的公車站之間能直達的路線，和指定日期的班表、即時到站。">
 <style>
   :root{
@@ -59,24 +60,33 @@
     .row2{grid-template-columns:1fr}
     .keygrid{grid-template-columns:1fr}
   }
+  .inwrap{display:flex;gap:6px}
+  .gps{border:1px solid var(--line);background:#fff;border-radius:10px;padding:0 10px;cursor:pointer;font-size:1.05rem;white-space:nowrap}
+  .gps:disabled{opacity:.5;cursor:wait}
+  .resolved{font-size:.8rem;color:var(--accent);margin-top:4px;min-height:1em}
+  #map{height:360px;border-radius:12px;border:1px solid var(--line);margin-bottom:16px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <p style="margin:0 0 8px;font-size:.88rem"><a href="./#life" style="color:var(--accent)">← 工具站</a></p>
   <h1>🚌 公車直達查詢</h1>
-  <p class="sub">輸入上車和下車的地點（站名），會把兩邊步行範圍內的公車站都找出來，列出能直達的路線（方向正確）和指定日期的班表。資料來源：交通部 TDX 運輸資料流通服務平臺。</p>
+  <p class="sub">輸入上車和下車的地點（站名、地址、地標，或用目前位置），會把兩邊步行範圍內的公車站都找出來，列出能直達的路線（方向正確）和指定日期的班表。資料來源：交通部 TDX 運輸資料流通服務平臺。</p>
 
   <form class="card" id="form">
     <div class="row">
       <div>
-        <label for="from">上車地點（站名，可只打部分）</label>
-        <input type="text" id="from" placeholder="例：德音國小" required>
+        <label for="from">上車地點（站名、地址、地標，或按 📍 用目前位置）</label>
+        <div class="inwrap"><input type="text" id="from" placeholder="例：德音國小、五股區成泰路一段100號">
+        <button type="button" class="gps" id="gpsFrom" title="用我目前的位置">📍</button></div>
+        <div class="resolved" id="fromInfo"></div>
       </div>
       <button type="button" class="swap" id="swap" title="起訖互換">⇄</button>
       <div>
-        <label for="to">下車地點（站名）</label>
-        <input type="text" id="to" placeholder="例：輔大醫院" required>
+        <label for="to">下車地點（可留空：只看上車地點附近的站牌）</label>
+        <div class="inwrap"><input type="text" id="to" placeholder="例：輔大醫院、泰山區貴子路69號">
+        <button type="button" class="gps" id="gpsTo" title="用我目前的位置">📍</button></div>
+        <div class="resolved" id="toInfo"></div>
       </div>
     </div>
     <div class="row2">
@@ -212,7 +222,7 @@ async function throttle(){
 }
 
 async function tdx(path, params={}){
-  const url = new URL(API+"/"+path);
+  const url = new URL(path.startsWith("http") ? path : API+"/"+path);
   for(const [k,v] of Object.entries({...params,"$format":"JSON"})) url.searchParams.set(k,v);
   for(let attempt=0; attempt<5; attempt++){
     const token = await getToken();
@@ -345,6 +355,103 @@ function findMatches(src, routes, A, B){
       nStops:best.j-best.i, walkA:Math.round(best.a), walkB:Math.round(best.b), score:best.score, operator:r.o });
   }
   return res;
+}
+
+/* ---------- 目前位置（GPS）---------- */
+const GPS_LABEL = "📍 目前位置";
+const gpsPos = {from:null, to:null};
+function setupGps(which){
+  const inp=$(which), btn=$(which==="from"?"gpsFrom":"gpsTo"), info=$(which+"Info");
+  inp.addEventListener("input", ()=>{ gpsPos[which]=null; info.textContent=""; });
+  btn.onclick = ()=>{
+    if(!navigator.geolocation){ info.textContent="這個瀏覽器不支援定位"; return; }
+    btn.disabled=true; info.textContent="定位中…（請允許瀏覽器使用位置）";
+    navigator.geolocation.getCurrentPosition(p=>{
+      btn.disabled=false;
+      gpsPos[which]={lat:p.coords.latitude, lon:p.coords.longitude, acc:Math.round(p.coords.accuracy)};
+      inp.value=GPS_LABEL;
+      info.textContent=`已定位（誤差約 ${gpsPos[which].acc} 公尺）`;
+      reverseLabel(gpsPos[which]).then(a=>{ if(a && gpsPos[which]) info.textContent=`你在：${a}（誤差約 ${gpsPos[which].acc} 公尺）`; });
+    }, err=>{
+      btn.disabled=false;
+      info.textContent = err.code===1 ? "沒有定位權限：請在瀏覽器網址列左邊的設定允許「位置」" : "定位失敗："+err.message;
+    }, {enableHighAccuracy:true, timeout:15000, maximumAge:30000});
+  };
+}
+setupGps("from"); setupGps("to");
+["from","to"].forEach(w=>{ if($(w).value.startsWith("📍")) $(w).value=""; });
+
+/* ---------- 地址／地標 → 座標（TDX 地理編碼，需要金鑰）---------- */
+const GEO = "https://tdx.transportdata.tw/api/advanced/V3/Map";
+function parseGeom(g){
+  if(!g) return null;
+  if(typeof g==="string"){ const m=g.match(/(-?\d+\.\d+)[\s,]+(-?\d+\.\d+)/); if(m){ const a=+m[1], b=+m[2]; return a>90?{lon:a,lat:b}:{lat:a,lon:b}; } }
+  if(g.coordinates) return {lon:g.coordinates[0], lat:g.coordinates[1]};
+  if(g.PositionLat) return {lat:g.PositionLat, lon:g.PositionLon};
+  return null;
+}
+async function geocode(kind, text){
+  const data = await tdx(`${GEO}/GeoCode/Coordinate/${kind}/${encodeURIComponent(text)}`, {});
+  const list = Array.isArray(data) ? data : (data ? [data] : []);
+  for(const r of list){ const p=parseGeom(r.Geometry); if(p && p.lat) return {...p, label:r.Address||r.Markname||text}; }
+  return null;
+}
+async function reverseLabel(p){
+  try{
+    const d = await tdx(`${GEO}/GeoLocating/Address/LocationX/${p.lon}/LocationY/${p.lat}`, {});
+    const r = Array.isArray(d)?d[0]:d; return r?.Address || null;
+  }catch(e){ return null; }
+}
+// 輸入可以是：目前位置、經緯度、站名、地標、地址
+async function resolvePlace(which, text, stops){
+  const info=$(which+"Info");
+  if(gpsPos[which]) return {anchors:Object.assign([{...gpsPos[which]}],{places:1}), kind:"gps", label:"目前位置"};
+  const ll = text.match(/^\s*(-?\d{1,2}\.\d+)\s*[, ]\s*(-?\d{2,3}\.\d+)\s*$/);
+  if(ll){ info.textContent="座標"; return {anchors:Object.assign([{lat:+ll[1],lon:+ll[2]}],{places:1}), kind:"point", label:text}; }
+  const looksAddress = /[路街道段巷弄號]/.test(text) && /\d/.test(text);
+  if(!looksAddress){
+    const a = findAnchors(text, stops);
+    if(a.length){ info.textContent = `公車站名「${text}」`; return {anchors:a, kind:"stop", label:text}; }
+  }
+  setStatus("查詢「"+text+"」的位置…");
+  let hit=null, lastErr=null;
+  for(const kind of (looksAddress?["Address","Markname"]:["Markname","Address"])){
+    try{ hit = await geocode(kind, text); if(hit) break; }
+    catch(e){ lastErr=e; if(e.status===429) throw e; }
+  }
+  if(!hit){
+    if(lastErr && (lastErr.status===401||lastErr.status===403) && !tokenCache)
+      throw new Error("用地址或地標查詢需要 TDX 金鑰（免金鑰只能用公車站名）。請在下方填入金鑰。");
+    throw new Error("找不到「"+text+"」：不是公車站名，地址／地標也查不到。地址請寫完整（含縣市、區），例如「新北市泰山區貴子路69號」。");
+  }
+  info.textContent = "找到："+hit.label;
+  return {anchors:Object.assign([{lat:hit.lat,lon:hit.lon}],{places:1}), kind:"geo", label:hit.label};
+}
+
+/* ---------- 地圖（Leaflet + OpenStreetMap）---------- */
+function loadLeaflet(){
+  if(window.L) return Promise.resolve();
+  return new Promise((res,rej)=>{ const sc=document.createElement("script");
+    sc.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); });
+}
+let mapObj=null;
+async function drawMap(el, fromR, toR, gA, gB){
+  try{ await loadLeaflet(); }catch(e){ el.remove(); return; }
+  if(mapObj){ mapObj.remove(); mapObj=null; }
+  mapObj = L.map(el);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OpenStreetMap"}).addTo(mapObj);
+  const pts=[];
+  const stopMarker=(g,color)=>{
+    const names=[...new Set([...g.routes.values()].map(r=>r.name))].sort((a,b)=>a.localeCompare(b,"zh-Hant",{numeric:true}));
+    L.circleMarker([g.lat,g.lon],{radius:7,color,weight:2,fillColor:"#fff",fillOpacity:1}).addTo(mapObj)
+      .bindPopup(`<b>${esc(g.name)}</b>（${Math.round(g.d)} 公尺）<br>${esc(names.join("、"))}`);
+    pts.push([g.lat,g.lon]);
+  };
+  gA.forEach(g=>stopMarker(g,"#0f7b6c")); gB.forEach(g=>stopMarker(g,"#b25e09"));
+  const here=(r,color,txt)=>{ if(!r || r.kind==="stop") return; const a=r.anchors[0];
+    L.circleMarker([a.lat,a.lon],{radius:9,color,fillColor:color,fillOpacity:.9}).addTo(mapObj).bindPopup(esc(txt)); pts.push([a.lat,a.lon]); };
+  here(fromR,"#0f7b6c","上車地點："+fromR.label); here(toR,"#b25e09","下車地點："+(toR?.label||""));
+  if(pts.length) mapObj.fitBounds(pts,{padding:[30,30],maxZoom:17});
 }
 
 /* ---------- 附近站牌清單 ---------- */
@@ -504,11 +611,11 @@ async function runSearch(){
   setStatus("查詢中…");
   const from=$("from").value.trim(), to=$("to").value.trim(), date=$("date").value;
   const srcs=[...document.querySelectorAll("input[name=src]:checked")].map(x=>x.value);
-  if(!from||!to||!date){ showError("請填好上車站、下車站和日期"); return; }
+  if(!from||!date){ showError("請填好上車地點和日期"); return; }
   if(!srcs.length){ setStatus("請至少勾選一個查詢範圍",true); return; }
-  store.set("bf_from",from); store.set("bf_to",to);
+  if(!gpsPos.from) store.set("bf_from",from); if(!gpsPos.to) store.set("bf_to",to);
   store.set("bf_cid",$("cid").value.trim()); store.set("bf_csec",$("csec").value.trim());
-  try{ history.replaceState(null,"","?"+new URLSearchParams({from,to,date})); }catch(e){}
+  try{ if(!gpsPos.from && !gpsPos.to) history.replaceState(null,"","?"+new URLSearchParams({from,to,date})); }catch(e){}
 
   const out=$("results"); out.innerHTML=""; $("go").disabled=true;
   try{
@@ -521,13 +628,25 @@ async function runSearch(){
     if(!datasets.length) throw new Error("資料下載失敗："+errs.join("；"));
     setStatus("在本機比對路線…");
     const stops = allStops(datasets);
-    const fromAnchors=findAnchors(from,stops), toAnchors=findAnchors(to,stops);
-    if(!fromAnchors.length) throw new Error("找不到名稱含「"+from+"」的公車站，請換個寫法");
-    if(!toAnchors.length) throw new Error("找不到名稱含「"+to+"」的公車站，請換個寫法");
-    if(fromAnchors.places>8 || toAnchors.places>8){
-      throw new Error("「"+(fromAnchors.places>8?from:to)+"」對到太多地方（"+Math.max(fromAnchors.places,toAnchors.places)+" 處），請打完整一點的站名");
+    const fromR = await resolvePlace("from", from, stops);
+    const toR = to ? await resolvePlace("to", to, stops) : null;
+    for(const [r,t] of [[fromR,from],[toR,to]]) if(r && r.anchors.places>8)
+      throw new Error("「"+t+"」對到太多地方（"+r.anchors.places+" 處），請打完整一點的站名，或改打地址");
+    setStatus("在本機比對路線…");
+    const A=nearMap(fromR.anchors,stops,radius), B=toR?nearMap(toR.anchors,stops,radius):{};
+    const fromName = fromR.kind==="gps" ? "目前位置" : from, toName = toR ? (toR.kind==="gps" ? "目前位置" : to) : "";
+
+    // 沒填下車地點：只列附近站牌＋地圖
+    if(!toR){
+      const gA=nearbyList(A, datasets);
+      out.innerHTML = gA.length
+        ? `<div class="summary">離「${esc(fromName)}」最近的公車站：<span style="color:var(--accent)">${esc(gA[0].name)}</span>（約 ${Math.round(gA[0].d)} 公尺）</div><div id="map"></div>`
+        : "";
+      out.insertAdjacentHTML("beforeend", renderNearby("「"+fromName+"」附近 "+radius+" 公尺", gA, radius));
+      if(gA.length) drawMap($("map"), fromR, null, gA, []);
+      setStatus(tokenFailed ? "金鑰沒用上："+tokenFailed.why : "完成", !!tokenFailed);
+      return;
     }
-    const A=nearMap(fromAnchors,stops,radius), B=nearMap(toAnchors,stops,radius);
     let matches=[];
     for(const ds of datasets) matches.push(...findMatches(ds.src, ds.routes, A, B));
     const best={};
@@ -540,8 +659,8 @@ async function runSearch(){
     const isToday = date===ymd(new Date());
     const dd=new Date(date+"T00:00:00");
     out.innerHTML = matches.length
-      ? `<div class="summary">${dd.getMonth()+1}/${dd.getDate()}（週${WEEK_ZH[dd.getDay()]}）從「${esc(from)}」到「${esc(to)}」共 ${matches.length} 條直達路線（步行 ${radius} 公尺內）</div>`
-      : `<div class="card empty">步行 ${radius} 公尺內沒有直達「${esc(to)}」的公車，請看下面的轉乘方式，或把步行距離調大。</div>`;
+      ? `<div class="summary">${dd.getMonth()+1}/${dd.getDate()}（週${WEEK_ZH[dd.getDay()]}）從「${esc(fromName)}」到「${esc(toName)}」共 ${matches.length} 條直達路線（步行 ${radius} 公尺內）</div>`
+      : `<div class="card empty">步行 ${radius} 公尺內沒有直達「${esc(toName)}」的公車，請看下面的轉乘方式，或把步行距離調大。</div>`;
     const cards = matches.map(m=>{
       const div=document.createElement("div"); div.className="route";
       div.innerHTML = `
@@ -583,10 +702,12 @@ async function runSearch(){
     }
 
     // 附近站牌
+    const gA=nearbyList(A, datasets), gB=nearbyList(B, datasets);
     out.insertAdjacentHTML("beforeend",
-      `<div class="summary" style="margin-top:20px">附近的公車站</div>` +
-      renderNearby("「"+from+"」附近 "+radius+" 公尺", nearbyList(A, datasets), radius) +
-      renderNearby("「"+to+"」附近 "+radius+" 公尺", nearbyList(B, datasets), radius));
+      `<div class="summary" style="margin-top:20px">附近的公車站</div><div id="map"></div>` +
+      renderNearby("「"+fromName+"」附近 "+radius+" 公尺（綠色）", gA, radius) +
+      renderNearby("「"+toName+"」附近 "+radius+" 公尺（橘色）", gB, radius));
+    drawMap($("map"), fromR, toR, gA, gB);
 
     cards.forEach(({m,el})=>{
       el.querySelector("button").onclick = async ()=>{
