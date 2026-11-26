@@ -454,6 +454,37 @@ async function drawMap(el, fromR, toR, gA, gB){
   if(pts.length) mapObj.fitBounds(pts,{padding:[30,30],maxZoom:17});
 }
 
+/* ---------- 這裡可以搭的公車（以路線為主）---------- */
+function routesFrom(near, datasets){
+  const best={};   // 每條路線、每個方向，取最近的上車站
+  for(const ds of datasets) for(const r of ds.routes){
+    let bi=-1, bd=Infinity;
+    r.s.forEach((st,i)=>{ const d=near[st[0]]; if(d!==undefined && d<bd && i<r.s.length-1){ bd=d; bi=i; } });
+    if(bi<0) continue;
+    const key=ds.src+"|"+r.n+"|"+r.d+"|"+(r.su||"");
+    if(!best[key]||bd<best[key].d) best[key]={src:ds.src, name:r.n, sub:r.sn, to:r.s[r.s.length-1][1], stop:r.s[bi][1], d:bd, rest:r.s.slice(bi+1).map(x=>x[1]), o:r.o};
+  }
+  // 依路線號碼分組（同一條車的去程、回程放一起）
+  const groups={};
+  for(const e of Object.values(best)) (groups[e.src+"|"+e.name] ||= []).push(e);
+  return Object.values(groups).map(list=>{ list.sort((a,b)=>a.d-b.d); return {name:list[0].name, src:list[0].src, d:list[0].d, dirs:list}; })
+    .sort((a,b)=>a.d-b.d || a.name.localeCompare(b.name,"zh-Hant",{numeric:true}));
+}
+function renderRoutesFrom(title, groups){
+  if(!groups.length) return "";
+  const rows=groups.map(g=>{
+    const dirs=g.dirs.map(e=>`
+      <details style="margin-top:6px">
+        <summary style="color:var(--ink)">往 <b>${esc(e.to)}</b>：在 <b>${esc(e.stop)}</b> 上車${walk(Math.round(e.d))}<span class="hint" style="margin-left:6px">之後 ${e.rest.length} 站</span></summary>
+        <div class="hint" style="margin:6px 0 0 14px;line-height:1.9">沿途：${e.rest.map(esc).join(" → ")}</div>
+      </details>`).join("");
+    return `<div style="padding:10px 0;border-top:1px solid var(--line)">
+      <span class="rname" style="font-size:1.15rem">${esc(g.name)}</span> <span class="tag">${esc(SRC_LABEL[g.src])}</span>${dirs}</div>`;
+  }).join("");
+  return `<div class="card"><div style="font-weight:600">${esc(title)}（${groups.length} 條）</div>${rows}
+    <p class="hint">點「往…」可展開沿途站，確認會不會經過你要去的地方。</p></div>`;
+}
+
 /* ---------- 附近站牌清單 ---------- */
 function nearbyList(near, datasets){
   // 每個站牌經過哪些路線（含方向）
@@ -642,7 +673,9 @@ async function runSearch(){
       out.innerHTML = gA.length
         ? `<div class="summary">離「${esc(fromName)}」最近的公車站：<span style="color:var(--accent)">${esc(gA[0].name)}</span>（約 ${Math.round(gA[0].d)} 公尺）</div><div id="map"></div>`
         : "";
-      out.insertAdjacentHTML("beforeend", renderNearby("「"+fromName+"」附近 "+radius+" 公尺", gA, radius));
+      out.insertAdjacentHTML("beforeend",
+        renderRoutesFrom("從「"+fromName+"」可以搭的公車（步行 "+radius+" 公尺內）", routesFrom(A, datasets)) +
+        renderNearby("「"+fromName+"」附近的公車站", gA, radius));
       if(gA.length) drawMap($("map"), fromR, null, gA, []);
       setStatus(tokenFailed ? "金鑰沒用上："+tokenFailed.why : "完成", !!tokenFailed);
       return;
