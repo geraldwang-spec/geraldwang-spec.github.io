@@ -248,6 +248,30 @@ I18N.add({
   "已保留固定值（總覽分頁仍會列出哪些測項有固定值）": "Fixed values kept (the Overview tab still lists which items have them)",
   "設定": "Settings",
 
+
+  /* 不良率 */
+  "不良率": "Fail rate",
+  "不良": "Fail",
+  "台 ÷ 總數": "units ÷ total",
+  "台　良率": "units　Yield",
+  "台 良率": "units　Yield",
+  "良率": "Yield",
+  "總台數": "Units",
+  "不良台數": "Fail units",
+  "上下限來源": "Limit source",
+  "不良序號：": "Fail serials: ",
+  "超限最多的頻點：": "Points failing most often: ",
+  "超限台數": "Units out of limits",
+  "各測項不良率": "Fail rate by item",
+  "任一測試頻點超出上下限的台數 ÷ 總台數": "Units with any tested point outside the limits ÷ all units",
+  "上下限已更新，不良台數沒有變化": "Limits updated; the number of failing units did not change",
+  "不良 = 該測項任一已勾選的頻點超出目前使用的上下限。調整任何測項的上下限後，這裡會跟著更新。點一列可跳到該測項。": "Fail = any ticked point of the item is outside the limits in use. This updates whenever you change an item's limits. Click a row to open that item.",
+  "判定：任一已勾選的頻點超出上限 USL 或下限 LSL（灰字自動、綠字分段規則、藍字手動，以目前使用的值為準）就算不良。調整上下限或測試頻點後會立即重算。": "Rule: a unit fails when any ticked point is above USL or below LSL (grey auto, green band rule, blue manual — whichever is in use). Recalculated as soon as you change limits or test points.",
+  "判定：量測值超出上限 USL 或下限 LSL（灰字自動、綠字分段規則、藍字手動，以目前使用的值為準）就算不良。調整上下限或測試頻點後會立即重算。": "Rule: a unit fails when its value is above USL or below LSL (grey auto, green band rule, blue manual — whichever is in use). Recalculated as soon as you change limits or test points.",
+  "不四捨五入時不良": "Without rounding,",
+  "本測項小數位數": "Decimals for this item",
+  "數值很小的測項（例如 THD %）建議用 2～3 位，避免上限被四捨五入捨掉。": "For items with small values (e.g. THD %), 2 – 3 places keep the upper limit from being rounded away.",
+
   /* meta description */
   "選擇資料夾批次讀取 Soundcheck log，每個測項整理成表格與曲線圖，用中位數 / MAD 排除離群值後計算上下限，並列出有問題的序號。": "Batch-read Soundcheck logs from a folder, turn each test item into a table and curve chart, calculate limits after removing outliers with median / MAD, and list the problem units."
 });
@@ -281,7 +305,7 @@ I18N.rules([
   [/^離群 (\d+)（未達門檻）$/, "$1 outliers (below threshold)"],
   [/^離群 (\d+)$/, "Outlier $1"],
   [/^超限 (\d+)$/, "Out of limits $1"],
-  [/^([A-Za-z0-9_]+)（(\d+) 點）(、?)$/, "$1 ($2 pts)$3"],
+  [/^([A-Za-z0-9_]+)（(\d+) 點）(、?)$/, function (m, a, n, c) { return a + " (" + n + (n === "1" ? " pt)" : " pts)") + (c ? ", " : ""); }],
 
   /* 測項頁 */
   [/^(\d+) 台$/, "$1 units"],
@@ -303,6 +327,22 @@ I18N.rules([
   [/^單位相同的曲線測項（(.*)）$/, "Curve items with the same unit ($1)"],
   [/^分段規則 ([A-Z])$/, "Band rule $1"],
 
+  /* 不良率 */
+  [/^不良率 ([\d.]+%)（(\d+) \/ (\d+) 台）$/, "Fail rate $1 ($2 / $3 units)"],
+  [/^不良率 ([\d.]+%)（(\d+) \/ (\d+)）$/, "Fail rate $1 ($2 / $3)"],
+  [/^整體不良率（(\d+) \/ (\d+) 台，任一測項超限）$/, "Overall fail rate ($1 / $2 units, any item out of limits)"],
+  [/^([\d.k]+) Hz：(\d+) 台$/, "$1 Hz: $2 units"],
+  [/^調整前 ([\d.]+%)（(\d+) 台）→ 現在 ([\d.]+%)（(\d+) 台）$/, "Before $1 ($2 units) → now $3 ($4 units)"],
+  [/^台；四捨五入到小數 (\d) 位後變成$/, "units fail; rounded to $1 decimal place(s) it becomes"],
+  [/^台（上限被捨小或下限被進大）。建議把本測項小數位數改成$/, "units (an upper limit was rounded down or a lower limit up). Suggest setting this item's decimals to"],
+  [/^台（上限被進大或下限被捨小）。建議把本測項小數位數改成$/, "units (an upper limit was rounded up or a lower limit down). Suggest setting this item's decimals to"],
+  [/^台（上限被捨小或下限被進大）。$/, "units (an upper limit was rounded down or a lower limit up)."],
+  [/^台（上限被進大或下限被捨小）。$/, "units (an upper limit was rounded up or a lower limit down)."],
+  [/^（(\d) 位時 (\d+) 台）。$/, " (with $1 places: $2 units)."],
+  [/^改成 (\d) 位$/, "Use $1 places"],
+  [/^(\d) 位$/, "$1 places"],
+  [/^跟隨上方設定（(\d) 位）$/, "Follow the setting above ($1 places)"],
+  [/^(.*)，小數 (\d) 位$/, function (m, a, d) { var map = { "分段規則": "band rule", "手動": "manual", "自動": "auto", "未測試": "not tested" }; return a.split(" + ").map(function (x) { return map[x] || x; }).join(" + ") + ", " + d + " decimal place(s)"; }],
   /* 計算明細 */
   [/^⇒ 合格範圍 (.*)$/, "⇒ accepted range $1"],
   [/^(\d+) 筆：$/, "$1: "],
