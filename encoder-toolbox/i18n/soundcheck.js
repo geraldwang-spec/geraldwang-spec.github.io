@@ -272,6 +272,18 @@ I18N.add({
   "本測項小數位數": "Decimals for this item",
   "數值很小的測項（例如 THD %）建議用 2～3 位，避免上限被四捨五入捨掉。": "For items with small values (e.g. THD %), 2 – 3 places keep the upper limit from being rounded away.",
 
+
+  /* 重測 */
+  "採用": "Used",
+  "第幾次": "Test #",
+  "最新一筆": "the latest record",
+  "同一序號有多份 log。上下限和不良率只用": "These serials have more than one log. Limits and fail rates use only ",
+  "，較早的測試只顯示、不計算。各次的判定都用目前的上下限，所以可以看出重測前後的差別。": "; earlier tests are shown but not counted. Every test is judged against the current limits, so you can compare before and after the retest.",
+  "同一序號有多份 log。目前「同序號只取最新一筆」沒有勾選，每一筆都算進上下限和不良率。各次的判定都用目前的上下限，所以可以看出重測前後的差別。": "These serials have more than one log. \"Latest record per serial only\" is off, so every record counts toward limits and fail rates. Every test is judged against the current limits, so you can compare before and after the retest.",
+  "虛線 = 選取序號較早的測試（重測）": "Dashed = earlier tests of the selected unit (retest)",
+  "虛線圈 = 選取序號較早的測試（重測）": "Dashed ring = earlier tests of the selected unit (retest)",
+  "重測序號數（同序號多份 log）": "Retested units (several logs per serial)",
+
   /* meta description */
   "選擇資料夾批次讀取 Soundcheck log，每個測項整理成表格與曲線圖，用中位數 / MAD 排除離群值後計算上下限，並列出有問題的序號。": "Batch-read Soundcheck logs from a folder, turn each test item into a table and curve chart, calculate limits after removing outliers with median / MAD, and list the problem units."
 });
@@ -343,11 +355,24 @@ I18N.rules([
   [/^(\d) 位$/, "$1 places"],
   [/^跟隨上方設定（(\d) 位）$/, "Follow the setting above ($1 places)"],
   [/^(.*)，小數 (\d) 位$/, function (m, a, d) { var map = { "分段規則": "band rule", "手動": "manual", "自動": "auto", "未測試": "not tested" }; return a.split(" + ").map(function (x) { return map[x] || x; }).join(" + ") + ", " + d + " decimal place(s)"; }],
+  /* 重測 */
+  [/^(\S+) 離群 (\d+)$/, "$1 outlier $2"],
+  [/^(\S+) 超限 (\d+)$/, "$1 out of limits $2"],
+  [/^共 (\d+) 次$/, "$1 tests"],
+  [/^第 (\d+) 次$/, "Test $1"],
+  [/^第(\d+)\/(\d+)次$/, "Test $1/$2"],
+  [/^同一序號的第 (\d+) 次測試$/, "Test $1 of this serial"],
+  [/^重測×(\d+)$/, "Retest ×$1"],
+  [/^重測序號（(\d+) 台）$/, "Retested units ($1)"],
+  [/^這台共有 (\d+) 筆測試，目前採用最新一筆$/, "This unit has $1 tests; the latest is used"],
+  [/^重測：共 (\d+) 筆，這是最新一筆（較早的以虛線顯示）$/, "Retest: $1 tests, this is the latest (earlier ones dashed)"],
+  [/^重測：共 (\d+) 筆，這是最新一筆（點選後以虛線顯示較早的）$/, "Retest: $1 tests, this is the latest (click to show earlier ones dashed)"],
+  [/^重測：第 (\d+) \/ (\d+) 次$/, "Retest: test $1 of $2"],
   /* 計算明細 */
   [/^⇒ 合格範圍 (.*)$/, "⇒ accepted range $1"],
   [/^(\d+) 筆：$/, "$1: "],
   [/^(\d+) 筆（整條排除模式）：$/, "$1 (whole-unit mode): "],
-  [/^（([-\d.]+)，([-+\d.]+)σr）(、?)$/, " ($1, $2σr)$3"],
+  [/^（([-\d.]+)，([-+\d.]+)σr）(、?)$/, function (m, a, b, c) { return " (" + a + ", " + b + "σr)" + (c ? ", " : ""); }],
   [/^分段規則 ([A-Z])：平均 μ (.*) → 四捨五入$/, "Band rule $1: mean μ $2 → rounded"],
   [/^分段規則 ([A-Z])：中位數 M (.*) → 四捨五入$/, "Band rule $1: median M $2 → rounded"],
   [/^自動計算值：(.*) → 四捨五入 (.*)$/, "Auto value: $1 → rounded $2"],
