@@ -148,7 +148,7 @@ table.xl thead th.fq:hover,table.xl thead th.fq.selc{color:var(--accent);box-sha
 table.xl .stk{position:sticky;z-index:2;text-align:left}
 table.xl thead .stk{z-index:4}
 table.xl .c0{left:0;min-width:40px}
-table.xl .c1{left:40px;min-width:130px}
+table.xl .c1{left:40px;min-width:130px;white-space:nowrap}
 table.xl tr.sum td{background:var(--surface-2);font-weight:600}
 table.xl tr.sum td.stk{color:var(--text-2)}
 table.xl tbody tr.r{cursor:pointer}
@@ -199,6 +199,20 @@ table.bands .rb.del:hover{border-color:var(--bad);color:var(--bad)}
 .bandcount button:hover{background:var(--accent);color:#fff}
 .bandcount input{width:44px;height:28px;border:none;border-left:1px solid var(--border);border-right:1px solid var(--border);text-align:center;background:var(--surface);color:var(--text);font:inherit}
 .subhead{font-weight:600;font-size:13px;margin:14px 0 2px;padding-top:10px;border-top:1px solid var(--grid)}
+.yrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px}
+.ybig{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.ybig.bad{color:var(--bad)}.ybig.ok{color:var(--ok)}
+.ymeta{flex:1 1 320px;font-size:13.5px}
+.ydelta{font-size:12.5px;padding:2px 9px;border-radius:9px;background:var(--surface-2);color:var(--text-2)}
+.ydelta.up{background:var(--bad-bg);color:var(--bad);font-weight:600}
+.ydelta.down{background:var(--ok-bg);color:var(--ok);font-weight:600}
+.ybar{height:8px;border-radius:4px;background:var(--surface-2);min-width:80px;overflow:hidden}
+.ybar>i{display:block;height:100%;background:var(--bad);border-radius:4px}
+.rt{display:inline-block;margin-left:6px;padding:0 6px;border-radius:8px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--accent);border:1px solid var(--accent);vertical-align:1px;white-space:nowrap}
+.chart path.c.old{stroke-width:1.8;stroke-dasharray:6 4;opacity:.95;pointer-events:none}
+.chart circle.d.old{fill:none;stroke:var(--c);stroke-width:2;stroke-dasharray:2 2;pointer-events:none}
+table.list td.rtsn{vertical-align:top;border-right:1px solid var(--grid)}
+table.list tr.rtfirst td{border-top:2px solid var(--border)}
 .progress{height:3px;background:var(--accent);width:0;transition:width .15s;position:absolute;left:0;bottom:-1px}
 </style>
 </head>
@@ -206,7 +220,7 @@ table.bands .rb.del:hover{border-color:var(--bad);color:var(--bad)}
 <header>
   <div class="row">
     <a class="backlink" href="./#bench">← 回到工具站</a>
-    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-25f</span></h1>
+    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-26c</span></h1>
     <button class="btn primary" id="btnFolder">選擇資料夾…</button>
     <input type="file" id="inFolder" webkitdirectory directory multiple hidden>
     <span class="drop" id="drop">或把資料夾拖曳到這裡</span>
@@ -328,11 +342,14 @@ function buildItems(raw, p) {
     it.recs.push({ sn: r.sn, op: r.op, time: r.time, file: r.file, ys });
   }
   for (const it of order) {
-    if (p.latestOnly) {
-      const best = new Map();
-      for (const rc of it.recs) { const b = best.get(rc.sn); if (!b || rc.time >= b.time) best.set(rc.sn, rc); }
-      it.recs = [...best.values()];
+    // 同一序號的多筆紀錄（重測）：依時間排序編號，「只取最新一筆」時較早的放進 older，只顯示不計算
+    const bySn = new Map();
+    for (const rc of it.recs) { if (!bySn.has(rc.sn)) bySn.set(rc.sn, []); bySn.get(rc.sn).push(rc); }
+    for (const arr of bySn.values()) {
+      arr.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
+      arr.forEach((rc, i) => { rc.tryNo = i + 1; rc.tries = arr.length; rc.older = []; });
     }
+    if (p.latestOnly) it.recs = [...bySn.values()].map(arr => { const last = arr[arr.length - 1]; last.older = arr.slice(0, -1); return last; });
     it.recs.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : a.sn < b.sn ? -1 : a.sn > b.sn ? 1 : 0);
   }
   return order;
@@ -396,12 +413,17 @@ function bandList(cfg) {
     .map(({ b, i }) => ({ letter: String.fromCharCode(65 + (i % 26)), lo: Math.min(+b.from, +b.to), hi: Math.max(+b.from, +b.to), u: b.u === '' || b.u == null ? NaN : +b.u, l: b.l === '' || b.l == null ? NaN : +b.l }));
 }
 /* 四捨五入（與 Excel ROUND 相同：.5 進位、負數對稱），避免 134.95 → 134.9 的浮點誤差 */
-function roundTo(v, d) {
-  if (v == null || !Number.isFinite(v)) return v;
-  const sgn = v < 0 ? -1 : 1, a = Math.abs(v);
-  return sgn * Number(Math.round(Number(a + 'e' + d)) + 'e-' + d);
+/* 全形數字與符號轉半形（注音等輸入法在全形模式打出的 １３５．５、－３） */
+function halfWidth(t) {
+  return String(t).replace(/[\uFF10-\uFF19]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[．。]/g, '.').replace(/[－−–—]/g, '-').replace(/＋/g, '+').replace(/[，､、]/g, ',').replace(/\u3000/g, ' ');
 }
-const fmtL = v => Number.isFinite(v) ? v.toFixed(S.p ? S.p.dec : 1) : '—';
+function roundTo(v, d) {
+  if (v == null || !Number.isFinite(v) || d == null || d > 10) return v;   // d 為 null = 不四捨五入
+  const m = 10 ** d, sgn = v < 0 ? -1 : 1;
+  return sgn * Math.round(+(Math.abs(v) * m).toPrecision(15)) / m;   // toPrecision 去掉 1349.4999… 這類浮點誤差
+}
+const fmtL = v => Number.isFinite(v) ? v.toFixed(S.curDec != null ? S.curDec : S.p ? S.p.dec : 1) : '—';
 const ptKey = (it, j) => it.kind === 'curve' ? String(it.xs[j]) : 'v';
 
 function computeItem(it, p) {
@@ -421,12 +443,14 @@ function computeItem(it, p) {
     stats = stats.map((_, j) => pointStats(colVals(j), flagged, p, it.oneSided));
   }
   // 優先順序：手動輸入（固定值）> 分段規則（每次依目前資料重算）> 自動計算
+  const dec = Number.isFinite(cfg.dec) ? cfg.dec : p.dec;     // 每個測項可另設小數位數
+  it.dec = dec; it.decOwn = Number.isFinite(cfg.dec);
   const rule = it.kind === 'curve' && cfg.bandActive ? bandList(cfg) : null;
   const useMedian = cfg.bandRef === 'median';
   stats.forEach((s, j) => {
     const k = ptKey(it, j);
     s.on = it.on[j]; s.autoUslRaw = s.usl; s.autoLslRaw = s.lsl;
-    s.autoUsl = roundTo(s.usl, p.dec); s.autoLsl = s.lsl == null ? null : roundTo(s.lsl, p.dec);
+    s.autoUsl = roundTo(s.usl, dec); s.autoLsl = s.lsl == null ? null : roundTo(s.lsl, dec);
     s.usl = s.autoUsl; s.lsl = s.autoLsl;
     s.bandU = s.bandL = false; s.band = null;
     if (rule) {
@@ -434,8 +458,8 @@ function computeItem(it, p) {
       const base = useMedian ? s.M : s.mean;
       if (b && Number.isFinite(base)) {
         s.band = { letter: b.letter, u: b.u, l: b.l, base, ref: useMedian ? '中位數 M' : '平均 μ' };
-        if (Number.isFinite(b.u)) { s.bandUraw = base + b.u; s.usl = roundTo(s.bandUraw, p.dec); s.bandU = true; }
-        if (Number.isFinite(b.l)) { s.bandLraw = base - b.l; s.lsl = roundTo(s.bandLraw, p.dec); s.bandL = true; }
+        if (Number.isFinite(b.u)) { s.bandUraw = base + b.u; s.usl = roundTo(s.bandUraw, dec); s.bandU = true; }
+        if (Number.isFinite(b.l)) { s.bandLraw = base - b.l; s.lsl = roundTo(s.bandLraw, dec); s.bandL = true; }
       }
     }
     s.manU = Number.isFinite(cfg.usl[k]); s.manL = Number.isFinite(cfg.lsl[k]);
@@ -461,7 +485,24 @@ function computeItem(it, p) {
     }
     r.flag = r.out.length >= thr;
   });
+  // 不良率：任一已勾選頻點超出上下限（USL / LSL，含手動與分段規則）就算不良
+  stats.forEach((s, j) => { s.failN = 0; });
+  it.recs.forEach(r => r.fail.forEach(j => stats[j].failN++));
+  const judge = ys => {
+    let out = 0, fail = 0;
+    ys.forEach((v, j) => {
+      const s = stats[j]; if (!it.on[j] || !Number.isFinite(v)) return;
+      if (s.canDetect && Math.abs(v - s.M) > p.k * s.sr) out++;
+      if (Number.isFinite(s.usl) && (v > s.usl || (s.lsl != null && v < s.lsl))) fail++;
+    });
+    return { out, fail, flag: out >= thr };
+  };
+  it.recs.forEach(r => r.older.forEach(h => { h.judge = judge(h.ys); }));
+  it.nUnits = it.recs.length;
+  it.failUnits = it.recs.filter(r => r.fail.length).length;
+  it.failRate = it.nUnits ? it.failUnits / it.nUnits : 0;
 }
+const pct = v => (v * 100).toFixed(v > 0 && v < 0.001 ? 3 : 2) + '%';
 
 /* ===================== 狀態 ===================== */
 const S = { snColors: new Map(), raw: [], fileCount: 0, skipped: [], items: [], tab: 'overview', selFreq: {}, selSn: null, chartOpt: {}, p: null, cfg: {} };
@@ -571,6 +612,28 @@ async function loadFiles(list) {
   recompute();
   if (!S.raw.length) $('#content').innerHTML = `<div class="empty"><b>沒有解析到任何 Soundcheck 資料。</b><br>請確認檔案是 Tab 分隔、含「Serial #:」標頭的 Soundcheck 匯出 log。</div>`;
 }
+/* 重測事件：同一序號的每一次測試（以時間 + 檔案為一次），附上各測項的判定 */
+function retestEvents() {
+  const ev = new Map();
+  S.items.forEach(it => it.recs.forEach(r => {
+    const all = [...r.older.map(h => ({ rec: h, j: h.judge, used: false })), { rec: r, j: { out: r.out.length, fail: r.fail.length, flag: r.flag }, used: true }];
+    all.forEach(({ rec, j, used }) => {
+      if (rec.tries < 2) return;
+      if (!ev.has(rec.sn)) ev.set(rec.sn, new Map());
+      const m = ev.get(rec.sn), key = rec.time + '|' + rec.file;
+      if (!m.has(key)) m.set(key, { time: rec.time, file: rec.file, used: false, issues: [] });
+      const e = m.get(key);
+      if (used) e.used = true;
+      if (j && j.flag) e.issues.push({ item: it.name, kind: 'out', n: j.out });
+      else if (j && j.fail) e.issues.push({ item: it.name, kind: 'fail', n: j.fail });
+    });
+  }));
+  return [...ev.entries()].map(([sn, m]) => ({ sn, tests: [...m.values()].sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : a.file < b.file ? -1 : 1) }))
+    .sort((a, b) => a.sn < b.sn ? -1 : 1);
+}
+const rtBadge = r => !r || r.tries < 2 ? '' : S.p.latestOnly
+  ? `<span class="rt" title="這台共有 ${r.tries} 筆測試，目前採用最新一筆">重測×${r.tries}</span>`
+  : `<span class="rt" title="同一序號的第 ${r.tryNo} 次測試">第${r.tryNo}/${r.tries}次</span>`;
 function setStatus(t) { $('#status').textContent = t; }
 
 $('#btnFolder').onclick = () => $('#inFolder').click();
@@ -631,6 +694,7 @@ function gotoItem(name, sn) {
 
 /* ===================== 總覽 ===================== */
 function renderOverview() {
+  S.curDec = null;
   const sns = []; const seen = new Set();
   S.items.forEach(it => it.recs.forEach(r => { if (!seen.has(r.sn)) { seen.add(r.sn); sns.push({ sn: r.sn, time: r.time }); } }));
   sns.sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : 0);
@@ -639,6 +703,8 @@ function renderOverview() {
   const probSn = new Set(probs.map(p => p.r.sn));
   probs.sort((a, b) => a.r.sn < b.r.sn ? -1 : a.r.sn > b.r.sn ? 1 : 0);
 
+  const failSn = new Set(); S.items.forEach(it => it.recs.forEach(r => { if (r.fail.length) failSn.add(r.sn); }));
+  const rtEv = retestEvents();
   const manItems = S.items.filter(it => it.manualCount);
   const bandItems = S.items.filter(it => it.bandActive);
   let h = '';
@@ -654,7 +720,19 @@ function renderOverview() {
     <div class="kpi"><div class="v">${sns.length}</div><div class="l">序號數${S.p.latestOnly ? '（同序號取最新）' : ''}</div></div>
     <div class="kpi"><div class="v">${S.items.length}</div><div class="l">測項數</div></div>
     <div class="kpi ${probSn.size ? 'bad' : ''}"><div class="v">${probSn.size}</div><div class="l">問題序號數（有離群值）</div></div>
+    <div class="kpi"><div class="v">${rtEv.length}</div><div class="l">重測序號數（同序號多份 log）</div></div>
+    <div class="kpi ${failSn.size ? 'bad' : ''}"><div class="v">${pct(sns.length ? failSn.size / sns.length : 0)}</div><div class="l">整體不良率（${failSn.size} / ${sns.length} 台，任一測項超限）</div></div>
   </div>`;
+  const maxRate = Math.max(0.0001, ...S.items.map(it => it.failRate));
+  h += `<section class="card"><h3>各測項不良率</h3>
+    <div class="note" style="margin:0 0 8px">不良 = 該測項任一已勾選的頻點超出目前使用的上下限。調整任何測項的上下限後，這裡會跟著更新。點一列可跳到該測項。</div>
+    <div style="overflow:auto"><table class="list"><thead><tr><th>測項</th><th style="text-align:right">總台數</th><th style="text-align:right">不良台數</th><th style="text-align:right">不良率</th><th style="width:30%"></th><th style="text-align:right">良率</th><th>上下限來源</th></tr></thead><tbody>
+    ${S.items.map(it => `<tr class="link" data-item="${esc(it.name)}"><td><b>${esc(it.name)}</b></td><td style="text-align:right">${it.nUnits}</td><td style="text-align:right">${it.failUnits}</td>
+      <td style="text-align:right;font-weight:600;${it.failUnits ? 'color:var(--bad)' : ''}">${it.nOn ? pct(it.failRate) : '—'}</td>
+      <td><div class="ybar"><i style="width:${(it.failRate / maxRate * 100).toFixed(1)}%"></i></div></td>
+      <td style="text-align:right">${it.nOn ? pct(1 - it.failRate) : '—'}</td>
+      <td class="skip">${!it.nOn ? '未測試' : [it.bandActive ? '分段規則' : '', it.manualCount ? '手動' : '', !it.bandActive || it.manualCount < it.nOn ? '自動' : ''].filter(Boolean).join(' + ') + `，小數 ${it.dec} 位`}</td></tr>`).join('')}
+    </tbody></table></div></section>`;
 
   h += `<section class="card"><h3>問題序號清單</h3>
     <div class="note" style="margin:0 0 8px">某序號在某測項的離群點數 ≥ ${S.p.minPts} 點就會列出（單值測項如 Sensitivity 為 1 點）。離群定義：|x − 中位數| > ${S.p.k}·σr，這些值${S.p.mode === 'unit' ? '和該序號整條資料都' : ''}不納入上下限計算。點一列可跳到該測項查看。</div>`;
@@ -674,6 +752,20 @@ function renderOverview() {
   }
   h += `</section>`;
 
+  if (rtEv.length) {
+    const tag = x => `<a href="#" class="tag ${x.kind === 'out' ? 'bad' : 'warn'}" data-item="${esc(x.item)}" data-sn="${esc(cur)}">${esc(x.item)} ${x.kind === 'out' ? '離群' : '超限'} ${x.n}</a>`;
+    let cur = '';
+    h += `<section class="card"><h3>重測序號（${rtEv.length} 台）</h3>
+      <div class="note" style="margin:0 0 8px">同一序號有多份 log。${S.p.latestOnly ? '上下限和不良率只用<b>最新一筆</b>，較早的測試只顯示、不計算。' : '目前「同序號只取最新一筆」沒有勾選，每一筆都算進上下限和不良率。'}各次的判定都用目前的上下限，所以可以看出重測前後的差別。</div>
+      <div style="overflow:auto"><table class="list"><thead><tr><th>序號</th><th>第幾次</th><th>測試時間</th><th>結果</th><th>檔案</th></tr></thead><tbody>
+      ${rtEv.map(({ sn, tests }) => { cur = sn; return tests.map((t, k) => `<tr class="${k === 0 ? 'rtfirst' : ''}">
+        ${k === 0 ? `<td class="rtsn" rowspan="${tests.length}"><b>${esc(sn)}</b><br><span class="skip">共 ${tests.length} 次</span></td>` : ''}
+        <td>第 ${k + 1} 次${S.p.latestOnly && t.used ? ' <span class="tag ok">採用</span>' : ''}</td>
+        <td>${esc(t.time)}</td>
+        <td>${t.issues.length ? t.issues.map(tag).join(' ') : '<span class="tag ok">OK</span>'}</td>
+        <td class="skip">${esc(t.file)}</td></tr>`).join(''); }).join('')}
+      </tbody></table></div></section>`;
+  }
   h += `<section class="card"><div class="card-h"><h3>每台測試結果總覽</h3>
     <div class="legend"><span><span class="tag bad">離群 n</span> 有離群值（列為問題序號）</span><span><span class="tag warn">超限 n</span> 未離群但超出計算出的上下限</span><span><span class="tag ok">OK</span></span></div></div>
     <div class="tbl-wrap"><table class="xl matrix"><thead><tr><th class="stk c0">#</th><th class="stk c1">序號</th>${S.items.map(it => `<th>${esc(it.name)}</th>`).join('')}</tr></thead><tbody>`;
@@ -712,7 +804,8 @@ function itemHeadHtml(it) {
     ${isC ? `<span class="chip">測試頻點 ${it.nOn} / ${npts}</span>` : it.nOn ? '' : '<span class="chip">未測試</span>'}
     ${it.bandActive ? `<span class="chip" style="color:var(--ok)">分段規則啟用中</span>` : ''}
     ${it.manualCount ? `<span class="chip" style="color:var(--accent)">手動固定上下限 ${it.manualCount} ${isC ? '點' : ''}</span>` : ''}
-    <span class="chip ${flaggedN ? 'bad' : ''}">問題序號 ${flaggedN}</span>`;
+    <span class="chip ${flaggedN ? 'bad' : ''}">問題序號 ${flaggedN}</span>
+    <span class="chip ${it.failUnits ? 'bad' : ''}" title="任一測試頻點超出上下限的台數 ÷ 總台數">不良率 ${pct(it.failRate)}（${it.failUnits} / ${it.nUnits}）</span>`;
 }
 function flagListHtml(it) {
   const f = it.recs.filter(r => r.flag);
@@ -720,6 +813,7 @@ function flagListHtml(it) {
 }
 
 function renderItem(it) {
+  S.curDec = it.dec;
   const p = S.p, isC = it.kind === 'curve';
   const where = isC ? '每個頻率點 f' : '此測項';
   const o = S.chartOpt[it.name] || (S.chartOpt[it.name] = { focus: false, normal: true });
@@ -736,7 +830,7 @@ function renderItem(it) {
         <li>若 <span class="formula">|xᵢ − M| &gt; k·σr</span>（k = ${p.k}）⇒ 判為離群值，<b>不納入計算</b>${p.mode === 'unit' ? '；問題序號的整條資料也排除' : ''}</li>
         <li>剩下的 n′ 筆：<span class="formula">μ = Σxᵢ / n′</span>，<span class="formula">σ = √(Σ(xᵢ − μ)² / (n′ − 1))</span></li>
         <li><span class="formula">USL = μ + N·σ</span>${it.oneSided ? '（THD 只取上限）' : '，<span class="formula">LSL = μ − N·σ</span>'}（N = ${p.N}${p.minHalf > 0 ? `；N·σ 小於 ${p.minHalf} 時用 ${p.minHalf}` : ''}）</li>
-        <li>算出的上下限（含分段規則）四捨五入到小數第 ${p.dec} 位，超限判定用四捨五入後的值；手動輸入的值不變</li>
+        <li>算出的上下限（含分段規則）四捨五入到小數第 ${it.dec} 位，超限判定用四捨五入後的值；手動輸入的值不變</li>
         <li>有手動輸入上下限的${isC ? '頻點' : '測項'}，判定改用手動值；取消勾選「測試」的頻點不判定</li>
         <li>某序號在此測項（已勾選的頻點）的離群點數 ≥ ${it.flagThr} ⇒ 列為問題序號${it.flagThr < p.minPts ? '（點數不足，門檻自動降低）' : ''}</li>
       </ol>
@@ -753,6 +847,7 @@ function renderItem(it) {
         <span><span class="sw" style="border-color:var(--text-2);border-top-width:3px"></span>粗線${isC ? '' : '／黑框點'} = 問題序號</span>
         <span><span class="sw dash" style="border-color:var(--mean)"></span>平均 μ</span>
         ${isC ? '<span><span class="swb" style="background:var(--muted);opacity:.3"></span>未測試頻點</span>' : ''}
+        ${it.recs.some(r => r.older.length) ? `<span><span class="sw dash" style="border-color:var(--text-2)"></span>${isC ? '虛線' : '虛線圈'} = 選取序號較早的測試（重測）</span>` : ''}
       </div>
       <div class="ctl">
         <label><input type="checkbox" id="cFocus" ${o.focus ? 'checked' : ''}> Y 軸聚焦上下限</label>
@@ -762,6 +857,7 @@ function renderItem(it) {
     <div class="snlegend" id="snLegend"></div>
     <div class="note">滑鼠移到${isC ? '曲線' : '點'}上可看序號與數值；點一下可選取該序號${isC ? '和頻率（右上方會顯示該頻率的計算明細）' : ''}。</div>
   </section>
+  <section class="card" id="yieldCard"></section>
   <section class="card">
     <div class="card-h"><h3>上下限 / 測試頻點設定</h3></div>
     ${isC ? `<div class="cfg-row"><span class="lbl">測試頻率範圍</span>
@@ -784,6 +880,12 @@ function renderItem(it) {
       <button class="btn sm" id="bandStop">停用分段規則</button>
     </div>
     <div class="subhead">其他批次設定</div>` : ''}
+    <div class="cfg-row"><span class="lbl">本測項小數位數</span>
+      <select id="iDec">
+        <option value="">跟隨上方設定（${p.dec} 位）</option>
+        ${[0, 1, 2, 3, 4].map(d => `<option value="${d}" ${it.decOwn && it.dec === d ? 'selected' : ''}>${d} 位</option>`).join('')}
+      </select>
+      <span class="note" style="margin:0">數值很小的測項（例如 THD %）建議用 2～3 位，避免上限被四捨五入捨掉。</span></div>
     <div class="cfg-row"><span class="lbl">批次設定上下限</span>
       <select id="bMode">
         <option value="rel">平均 ± 寬度（依目前資料算好後固定成數值）</option>
@@ -813,6 +915,7 @@ function renderItem(it) {
   }
   renderDetail(it);
   drawChart(it);
+  renderYield(it, null);
   renderTable(it);
   if (S.selSn) scrollToRow(S.selSn);
 }
@@ -828,6 +931,7 @@ function bindCfgCard(it) {
     $('#bLl').textContent = m === 'rel' ? '下限 μ −' : '下限';
   };
   mode.onchange = syncMode; syncMode();
+  $('#iDec').onchange = () => { const v = $('#iDec').value; if (v === '') delete cfg.dec; else cfg.dec = +v; saveCfg(); refreshItem(it); };
   if (isC) bindBands(it);
   if (isC) {
     $('#bRange').onclick = () => {
@@ -844,7 +948,7 @@ function bindCfgCard(it) {
     const u = $('#bU').value.trim() === '' ? NaN : +$('#bU').value;
     const l = $('#bL').value.trim() === '' ? NaN : +$('#bL').value;
     if (m !== 'freeze' && !Number.isFinite(u) && !Number.isFinite(l)) { alertMsg('請輸入上限或下限（留空的那一邊不會更動）'); return; }
-    const r3 = v => roundTo(v, S.p.dec);
+    const r3 = v => roundTo(v, it.dec);
     it.stats.forEach((s, j) => {
       if (!s.on) return;
       const k = ptKey(it, j);
@@ -974,7 +1078,10 @@ function refreshItem(it) {
     const a = document.activeElement;
     const fsel = a && a.dataset && a.dataset.lim ? `input[data-lim="${a.dataset.lim}"][data-j="${a.dataset.j}"]` : null;
     const w = $('#tbl'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0;
+    const before = { rate: it.failRate, fail: it.failUnits, n: it.nUnits };
     computeItem(it, S.p);
+    S.curDec = it.dec;
+    renderYield(it, before);
     renderTabs();
     $('#ihead').innerHTML = itemHeadHtml(it);
     $('#flagList').innerHTML = flagListHtml(it);
@@ -982,6 +1089,51 @@ function refreshItem(it) {
     const w2 = $('#tbl'); w2.scrollLeft = sl; w2.scrollTop = st;
     if (fsel) { const e = w2.querySelector(fsel); if (e) { e.focus(); e.select(); } }
   }, 0);
+}
+
+/* ---- 不良率卡片：調整上下限後即時更新，並顯示調整前後的變化 ---- */
+function renderYield(it, before) {
+  const el = $('#yieldCard'); if (!el) return;
+  const isC = it.kind === 'curve';
+  const fails = it.recs.map((r, i) => ({ r, i })).filter(({ r }) => r.fail.length);
+  let delta = '';
+  if (before && (before.fail !== it.failUnits || before.n !== it.nUnits)) {
+    const up = it.failRate > before.rate;
+    delta = `<span class="ydelta ${up ? 'up' : 'down'}">調整前 ${pct(before.rate)}（${before.fail} 台）→ 現在 ${pct(it.failRate)}（${it.failUnits} 台）</span>`;
+  } else if (before) delta = `<span class="ydelta">上下限已更新，不良台數沒有變化</span>`;
+  // 檢查四捨五入對不良台數的影響，必要時建議小數位數
+  const failAt = d => it.recs.filter(r => r.ys.some((v, j) => {
+    const s = it.stats[j]; if (!s.on || !Number.isFinite(v)) return false;
+    const u = s.manU ? s.usl : roundTo(s.bandU ? s.bandUraw : s.autoUslRaw, d);
+    const lRaw = s.bandL ? s.bandLraw : s.autoLslRaw;
+    const l = s.manL ? s.lsl : (s.lsl == null ? null : roundTo(lRaw, d));
+    return (Number.isFinite(u) && v > u) || (l != null && Number.isFinite(l) && v < l);
+  })).length;
+  const failRaw = failAt(null);
+  let decWarn = '';
+  if (failRaw !== it.failUnits) {
+    let sug = null, best = Infinity;
+    for (let d = it.dec + 1; d <= 4; d++) { const diff = Math.abs(failAt(d) - failRaw); if (diff < best) { best = diff; sug = d; } if (diff === 0) break; }
+    decWarn = `<div class="note" style="margin:8px 0 0;padding:6px 10px;border-radius:8px;background:var(--warn-bg);color:var(--warn)">
+      不四捨五入時不良 <b>${failRaw}</b> 台；四捨五入到小數 ${it.dec} 位後變成 <b>${it.failUnits}</b> 台（${it.failUnits > failRaw ? '上限被捨小或下限被進大' : '上限被進大或下限被捨小'}）。${sug != null ? `建議把本測項小數位數改成 <b>${sug} 位</b>${best ? `（${sug} 位時 ${failAt(sug)} 台）` : ''}。<button class="btn sm" id="ySug" data-d="${sug}">改成 ${sug} 位</button>` : ''}</div>`;
+  }
+  const worstCols = isC ? it.stats.map((s, j) => ({ s, j })).filter(({ s }) => s.on && s.failN).sort((a, b) => b.s.failN - a.s.failN).slice(0, 5) : [];
+  el.innerHTML = `<div class="card-h"><h3>不良率</h3>${delta}</div>
+    <div class="yrow">
+      <div class="ybig ${it.failUnits ? 'bad' : 'ok'}">${pct(it.failRate)}</div>
+      <div class="ymeta">不良 <b>${it.failUnits}</b> 台 ÷ 總數 <b>${it.nUnits}</b> 台　良率 <b>${pct(1 - it.failRate)}</b>
+        <div class="note" style="margin:2px 0 0">判定：${isC ? '任一已勾選的頻點' : '量測值'}超出上限 USL 或下限 LSL（灰字自動、綠字分段規則、藍字手動，以目前使用的值為準）就算不良。調整上下限或測試頻點後會立即重算。</div></div>
+    </div>
+    ${worstCols.length ? `<div class="note" style="margin:8px 0 0"><b>超限最多的頻點：</b>${worstCols.map(({ s, j }) => `<a href="#" class="tag warn" data-j="${j}">${fmtF(it.xs[j])} Hz：${s.failN} 台</a>`).join(' ')}</div>` : ''}
+    ${decWarn}
+    ${fails.length ? `<div class="note" style="margin:6px 0 0"><b>不良序號：</b>${fails.map(({ r }) => `<a href="#" class="tag bad" data-sn="${esc(r.sn)}">${esc(r.sn)}（${r.fail.length}${isC ? ' 點' : ''}）</a>`).join(' ')}</div>` : ''}`;
+  el.onclick = e => {
+    const sb = e.target.closest('#ySug');
+    if (sb) { getCfg(it.name).dec = +sb.dataset.d; saveCfg(); const sel = $('#iDec'); if (sel) sel.value = sb.dataset.d; refreshItem(it); return; }
+    const a = e.target.closest('a'); if (!a) return; e.preventDefault();
+    if (a.dataset.sn) selectSn(it, a.dataset.sn, true);
+    else if (a.dataset.j != null) selectFreq(it, +a.dataset.j);
+  };
 }
 
 function renderDetail(it) {
@@ -1028,7 +1180,9 @@ function selectFreq(it, j) {
   document.querySelectorAll(`#tbl th[data-j="${j}"], #tbl td[data-j="${j}"]`).forEach(e => e.classList.add('selc'));
 }
 function selectSn(it, sn, scroll) {
+  const prev = it.recs.find(r => r.sn === S.selSn), next = it.recs.find(r => r.sn === sn);
   S.selSn = sn;
+  if ((prev && prev.older.length) || (next && next.older.length)) drawChart(it);   // 畫出／移除較早測試的虛線
   document.querySelectorAll('#chart .sel').forEach(e => e.classList.remove('sel'));
   const i = it.recs.findIndex(r => r.sn === sn);
   const m = document.querySelector(`#chart [data-i="${i}"]`);
@@ -1064,11 +1218,12 @@ function renderTable(it) {
   h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">平均 μ</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${fmt(s.mean)}</td>`).join('')}</tr>`;
   h += limRow('下限 LSL', 'lsl');
   h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">標準差 σ</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${fmt(s.sd, 3)}</td>`).join('')}</tr>`;
+  h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">超限台數</td><td colspan="2" class="hint">不良率 ${pct(it.failRate)}（${it.failUnits} / ${it.nUnits} 台）</td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j, s.on && s.failN ? 'f' : '')}>${s.on ? s.failN : ''}</td>`).join('')}</tr>`;
   h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">排除筆數</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${s.out.size + s.unitEx.length}</td>`).join('')}</tr>`;
   it.recs.forEach((r, i) => {
     const outS = new Set(r.out), failS = new Set(r.fail);
     const st = r.flag ? `<td class="st-bad">問題（離群 ${r.out.length}）</td>` : (r.out.length || r.fail.length) ? `<td class="st-warn">${[r.out.length ? `離群 ${r.out.length}（未達門檻）` : '', r.fail.length ? `超限 ${r.fail.length}` : ''].filter(Boolean).join('、')}</td>` : `<td class="st-ok">OK</td>`;
-    h += `<tr class="r ${r.sn === S.selSn ? 'sel' : ''}" data-sn="${esc(r.sn)}"><td class="stk c0">${i + 1}</td><td class="stk c1"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}</td>${st}<td style="text-align:left">${esc(r.time)}</td>`;
+    h += `<tr class="r ${r.sn === S.selSn ? 'sel' : ''}" data-sn="${esc(r.sn)}"><td class="stk c0">${i + 1}</td><td class="stk c1"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}${rtBadge(r)}</td>${st}<td style="text-align:left">${esc(r.time)}</td>`;
     for (let j = 0; j < npts; j++) h += `<td data-j="${j}"${cc(j, outS.has(j) ? 'o' : failS.has(j) ? 'f' : '')}>${fmt(r.ys[j])}</td>`;
     h += `</tr>`;
   });
@@ -1090,7 +1245,7 @@ function renderTable(it) {
     saveCfg(); refreshItem(it);
   });
   const setLim = (kind, j, txt) => {
-    const k = ptKey(it, j), t = String(txt).trim().replace(/,/g, '');
+    const k = ptKey(it, j), t = halfWidth(txt).trim().replace(/,/g, '');
     if (t === '') { delete cfg[kind][k]; return true; }
     const v = parseFloat(t);
     if (!Number.isFinite(v)) return false;
@@ -1104,6 +1259,7 @@ function renderTable(it) {
       saveCfg(); refreshItem(it);
     });
     inp.addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return;          // 輸入法選字中的 Enter 不處理
       if (e.key === 'Enter') {
         e.preventDefault();
         const nx = wrap.querySelector(`input[data-lim="${kind}"][data-j="${j + 1}"]`);
@@ -1210,6 +1366,7 @@ function drawChart(it) {
   if (isC) {
     it.recs.forEach((r, i) => { if (!r.flag && o.normal) marks += `<path class="c n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(r.ys)}"/>`; });
     it.recs.forEach((r, i) => { if (r.flag) marks += `<path class="c b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(r.ys)}"/>`; });
+    if (selI >= 0) it.recs[selI].older.forEach(h => { marks += `<path class="c old" style="--c:${snColor(h.sn)}" d="${pathFor(h.ys)}"/>`; });
     // 未測試頻點：灰色底
     let bands = '';
     const n = xv.length;
@@ -1238,6 +1395,7 @@ function drawChart(it) {
     }
     const rr = Math.max(3, Math.min(5, pw / R / 2.5));
     it.recs.forEach((r, i) => { if (!r.flag && o.normal && Number.isFinite(r.ys[0])) marks += `<circle class="d n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr}"/>`; });
+    if (selI >= 0) it.recs[selI].older.forEach(h => { if (Number.isFinite(h.ys[0])) marks += `<circle class="d old" style="--c:${snColor(h.sn)}" cx="${X(selI + 1)}" cy="${Y(h.ys[0])}" r="${rr + 3}"/>`; });
     it.recs.forEach((r, i) => { if (r.flag && Number.isFinite(r.ys[0])) marks += `<circle class="d b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr + 1}"/>`; });
   }
   const cid = 'clp' + Math.random().toString(36).slice(2, 8);
@@ -1253,7 +1411,7 @@ function drawChart(it) {
   const lg = $('#snLegend');
   if (lg) {
     const shown = it.recs.map((r, i) => ({ r, i })).filter(({ r }) => visible(r));
-    lg.innerHTML = shown.length ? shown.map(({ r, i }) => `<a href="#" data-i="${i}" class="${r.flag ? 'bad' : ''}${r.sn === S.selSn ? ' sel' : ''}" title="${r.flag ? '問題序號' : ''}"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}</a>`).join('') : '<span class="note">沒有顯示中的序號</span>';
+    lg.innerHTML = shown.length ? shown.map(({ r, i }) => `<a href="#" data-i="${i}" class="${r.flag ? 'bad' : ''}${r.sn === S.selSn ? ' sel' : ''}" title="${r.flag ? '問題序號' : ''}"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}${rtBadge(r)}</a>`).join('') : '<span class="note">沒有顯示中的序號</span>';
     lg.onclick = e => { const a = e.target.closest('a[data-i]'); if (!a) return; e.preventDefault(); selectSn(it, it.recs[+a.dataset.i].sn, true); if (el._showTip) el._showTip(+a.dataset.i); };
     lg.onmouseover = e => { const a = e.target.closest('a[data-i]'); if (!a) return; const m = el.querySelector(`.marks [data-i="${a.dataset.i}"]`); if (m) { el.classList.add('dim'); m.classList.add('hl'); m.parentNode.appendChild(m); } };
     lg.onmouseout = e => { const a = e.target.closest('a[data-i]'); if (!a) return; el.classList.remove('dim'); el.querySelectorAll('.marks .hl').forEach(m => m.classList.remove('hl')); };
@@ -1286,7 +1444,7 @@ function drawChart(it) {
     const s = it.stats[j];
     const r = it.recs[i], v = r.ys[j];
     const state = !s.on ? '<span class="tag warn">未測試頻點</span>' : s.out.has(i) ? '<span class="tag bad">離群（不納入計算）</span>' : (Number.isFinite(s.usl) && (v > s.usl || (s.lsl != null && v < s.lsl))) ? '<span class="tag warn">超出上下限</span>' : '<span class="tag ok">正常</span>';
-    tip.innerHTML = `<span class="sncol" style="--c:${snColor(r.sn)}"></span><b>${esc(r.sn)}</b> ${state}<br>${isC ? `f = ${fmtF(xv[j])} Hz　` : ''}值 = <b>${fmt(v)}</b> ${esc(it.yUnit)}<br><span class="s">USL ${s.manU ? +s.usl.toFixed(4) : fmtL(s.usl)}　μ ${fmt(s.mean)}${s.lsl != null ? '　LSL ' + (s.manL ? +s.lsl.toFixed(4) : fmtL(s.lsl)) : ''}${s.manU || s.manL ? '（手動）' : ''}</span><br><span class="s">${esc(r.time)}</span>`;
+    tip.innerHTML = `<span class="sncol" style="--c:${snColor(r.sn)}"></span><b>${esc(r.sn)}</b> ${state}<br>${isC ? `f = ${fmtF(xv[j])} Hz　` : ''}值 = <b>${fmt(v)}</b> ${esc(it.yUnit)}<br><span class="s">USL ${s.manU ? +s.usl.toFixed(4) : fmtL(s.usl)}　μ ${fmt(s.mean)}${s.lsl != null ? '　LSL ' + (s.manL ? +s.lsl.toFixed(4) : fmtL(s.lsl)) : ''}${s.manU || s.manL ? '（手動）' : ''}</span><br><span class="s">${esc(r.time)}</span>${r.tries > 1 ? `<br><span class="s">${S.p.latestOnly ? `重測：共 ${r.tries} 筆，這是最新一筆${S.selSn === r.sn ? '（較早的以虛線顯示）' : '（點選後以虛線顯示較早的）'}` : `重測：第 ${r.tryNo} / ${r.tries} 次`}</span>` : ''}`;
     tip.style.display = 'block';
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.max(0, Math.min(W - tw - 4, px + 14)) + 'px';
@@ -1357,6 +1515,20 @@ function exportExcel() {
     s.autoUsl, s.autoLsl == null ? '' : s.autoLsl,
     { v: s.usl, s: s.manU ? 'm' : null }, src(s.srcU), { v: s.lsl == null ? '' : s.lsl, s: s.manL ? 'm' : null }, src(s.srcL)])));
   sheets.push(sheet('Limits', lim));
+
+  const allSn = new Set(), failAll = new Set();
+  S.items.forEach(it => it.recs.forEach(r => { allSn.add(r.sn); if (r.fail.length) failAll.add(r.sn); }));
+  const yl = [[H('Item'), H('Units'), H('Fail units'), H('Fail rate (%)'), H('Yield (%)'), H('Fail serials')]];
+  S.items.forEach(it => yl.push([it.name, it.nUnits, it.failUnits, +(it.failRate * 100).toFixed(3), +((1 - it.failRate) * 100).toFixed(3), it.recs.filter(r => r.fail.length).map(r => r.sn).join(', ')]));
+  yl.push([]);
+  yl.push([H('All items'), allSn.size, failAll.size, allSn.size ? +(failAll.size / allSn.size * 100).toFixed(3) : 0, allSn.size ? +((1 - failAll.size / allSn.size) * 100).toFixed(3) : 0, [...failAll].join(', ')]);
+  yl.push(['Fail = any tested point outside the USL / LSL in use (auto, band rule or manual).']);
+  sheets.push(sheet('Yield', yl));
+
+  const rtl = [[H(L.sn), H('Test #'), H('Tests'), H(L.time), H('Used'), H('Result'), H('File')]];
+  retestEvents().forEach(({ sn, tests }) => tests.forEach((t, k) => rtl.push([sn, k + 1, tests.length, t.time, p.latestOnly ? (t.used ? 'Y' : 'N') : 'Y',
+    t.issues.length ? t.issues.map(x => `${x.item} ${x.kind === 'out' ? 'Outlier' : 'Out of limit'} ${x.n}`).join(', ') : 'OK', t.file])));
+  if (rtl.length > 1) sheets.push(sheet('Retests', rtl));
 
   const transpose = $('#pDir') && $('#pDir').value === 'col';
   S.items.forEach(it => {
@@ -1453,7 +1625,7 @@ $('#btnCfgOut').onclick = () => {
   const items = {};
   Object.entries(S.cfg).forEach(([k, c]) => {
     const off = Object.keys(c.off || {}), usl = c.usl || {}, lsl = c.lsl || {};
-    if (off.length || Object.keys(usl).length || Object.keys(lsl).length || (c.bands && c.bands.length) || c.bandActive) items[k] = { off: Object.fromEntries(off.map(x => [x, true])), usl, lsl, bands: c.bands || [], bandRef: c.bandRef || 'mean', bandActive: !!c.bandActive };
+    if (off.length || Object.keys(usl).length || Object.keys(lsl).length || (c.bands && c.bands.length) || c.bandActive || Number.isFinite(c.dec)) items[k] = { off: Object.fromEntries(off.map(x => [x, true])), usl, lsl, bands: c.bands || [], bandRef: c.bandRef || 'mean', bandActive: !!c.bandActive, dec: Number.isFinite(c.dec) ? c.dec : undefined };
   });
   if (!Object.keys(items).length) { alertMsg('目前沒有任何手動上下限或測試頻點設定'); return; }
   const params = readParams();
@@ -1472,6 +1644,7 @@ $('#inCfg').onchange = async e => {
       const clean = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => Number.isFinite(+v)).map(([x, v]) => [x, +v]));
       const bands = Array.isArray(c.bands) ? c.bands.map(b => ({ from: +b.from, to: +b.to, u: b.u === '' || b.u == null ? '' : +b.u, l: b.l === '' || b.l == null ? '' : +b.l })).filter(b => Number.isFinite(b.from) && Number.isFinite(b.to)) : [];
       S.cfg[String(k)] = { off: Object.fromEntries(Object.keys(c.off || {}).map(x => [x, true])), usl: clean(c.usl), lsl: clean(c.lsl), bands, bandRef: c.bandRef === 'median' ? 'median' : 'mean', bandActive: !!c.bandActive };
+      if (Number.isFinite(+c.dec) && c.dec !== null && c.dec !== '') S.cfg[String(k)].dec = Math.max(0, Math.min(4, Math.round(+c.dec)));
     });
     if (j.params) {
       const P = j.params;
