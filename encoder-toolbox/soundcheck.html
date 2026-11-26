@@ -215,7 +215,7 @@ table.bands .rb.del:hover{border-color:var(--bad);color:var(--bad)}
 <header>
   <div class="row">
     <a class="backlink" href="./#bench">← 回到工具站</a>
-    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-26a</span></h1>
+    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-26b</span></h1>
     <button class="btn primary" id="btnFolder">選擇資料夾…</button>
     <input type="file" id="inFolder" webkitdirectory directory multiple hidden>
     <span class="drop" id="drop">或把資料夾拖曳到這裡</span>
@@ -405,6 +405,11 @@ function bandList(cfg) {
     .map(({ b, i }) => ({ letter: String.fromCharCode(65 + (i % 26)), lo: Math.min(+b.from, +b.to), hi: Math.max(+b.from, +b.to), u: b.u === '' || b.u == null ? NaN : +b.u, l: b.l === '' || b.l == null ? NaN : +b.l }));
 }
 /* 四捨五入（與 Excel ROUND 相同：.5 進位、負數對稱），避免 134.95 → 134.9 的浮點誤差 */
+/* 全形數字與符號轉半形（注音等輸入法在全形模式打出的 １３５．５、－３） */
+function halfWidth(t) {
+  return String(t).replace(/[\uFF10-\uFF19]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[．。]/g, '.').replace(/[－−–—]/g, '-').replace(/＋/g, '+').replace(/[，､、]/g, ',').replace(/\u3000/g, ' ');
+}
 function roundTo(v, d) {
   if (v == null || !Number.isFinite(v) || d == null || d > 10) return v;   // d 為 null = 不四捨五入
   const m = 10 ** d, sgn = v < 0 ? -1 : 1;
@@ -1181,7 +1186,7 @@ function renderTable(it) {
     saveCfg(); refreshItem(it);
   });
   const setLim = (kind, j, txt) => {
-    const k = ptKey(it, j), t = String(txt).trim().replace(/,/g, '');
+    const k = ptKey(it, j), t = halfWidth(txt).trim().replace(/,/g, '');
     if (t === '') { delete cfg[kind][k]; return true; }
     const v = parseFloat(t);
     if (!Number.isFinite(v)) return false;
@@ -1195,6 +1200,7 @@ function renderTable(it) {
       saveCfg(); refreshItem(it);
     });
     inp.addEventListener('keydown', e => {
+      if (e.isComposing || e.keyCode === 229) return;          // 輸入法選字中的 Enter 不處理
       if (e.key === 'Enter') {
         e.preventDefault();
         const nx = wrap.querySelector(`input[data-lim="${kind}"][data-j="${j + 1}"]`);
