@@ -295,6 +295,8 @@ I18N.add({
   "拖曳調整圖表高度（雙擊還原）": "Drag to change the chart height (double-click to reset)",
   "縮放：滾輪放大縮小（Shift＋滾輪只縮放 Y 軸、Alt＋滾輪只縮放 X 軸）；拖曳平移；Shift＋拖曳框選放大；雙擊還原。拖曳圖表下緣的橫條可調整圖表高度。": "Zoom: mouse wheel zooms in and out (Shift + wheel zooms the Y axis only, Alt + wheel the X axis only); drag to pan; Shift + drag to zoom into a box; double-click to reset. Drag the bar under the chart to change its height.",
 
+  "顯示離群資料": "Show outlier data",
+  "取消勾選後，問題序號的曲線和其他序號的離群點都不畫在圖上（上下限、不良率等計算不受影響）": "Untick to leave problem units' curves and other units' outlier points off the chart (limits, fail rates and other calculations are unaffected)",
   /* meta description */
   "選擇資料夾批次讀取 Soundcheck log，每個測項整理成表格與曲線圖，用中位數 / MAD 排除離群值後計算上下限，並列出有問題的序號。": "Batch-read Soundcheck logs from a folder, turn each test item into a table and curve chart, calculate limits after removing outliers with median / MAD, and list the problem units."
 });
@@ -379,6 +381,8 @@ I18N.rules([
   [/^重測：共 (\d+) 筆，這是最新一筆（較早的以虛線顯示）$/, "Retest: $1 tests, this is the latest (earlier ones dashed)"],
   [/^重測：共 (\d+) 筆，這是最新一筆（點選後以虛線顯示較早的）$/, "Retest: $1 tests, this is the latest (click to show earlier ones dashed)"],
   [/^重測：第 (\d+) \/ (\d+) 次$/, "Retest: test $1 of $2"],
+  [/^圖上已隱藏 (\d+) 個問題序號、其他序號的 (\d+) 個離群點（計算不受影響）$/, "Hidden on the chart: $1 problem units and $2 outlier points of other units (calculations unaffected)"],
+  [/^圖上已隱藏 (\d+) 個問題序號（計算不受影響）$/, "Hidden on the chart: $1 problem units (calculations unaffected)"],
   /* 計算明細 */
   [/^⇒ 合格範圍 (.*)$/, "⇒ accepted range $1"],
   [/^(\d+) 筆：$/, "$1: "],

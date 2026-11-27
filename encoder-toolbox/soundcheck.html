@@ -231,7 +231,7 @@ body.resizing{cursor:ns-resize;user-select:none}
 <header>
   <div class="row">
     <a class="backlink" href="./#bench">← 回到工具站</a>
-    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-27a</span></h1>
+    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-27b</span></h1>
     <button class="btn primary" id="btnFolder">選擇資料夾…</button>
     <input type="file" id="inFolder" webkitdirectory directory multiple hidden>
     <span class="drop" id="drop">或把資料夾拖曳到這裡</span>
@@ -519,6 +519,7 @@ const pct = v => (v * 100).toFixed(v > 0 && v < 0.001 ? 3 : 2) + '%';
 const S = { snColors: new Map(), raw: [], fileCount: 0, skipped: [], items: [], tab: 'overview', selFreq: {}, selSn: null, chartOpt: {}, p: null, cfg: {} };
 S.cfg = loadCfg();
 S.zoom = {};
+S.showOutlier = (() => { try { return localStorage.getItem('soundcheckTool.showOutlier') !== '0'; } catch (e) { return true; } })();
 S.chartH = (() => { try { return JSON.parse(localStorage.getItem('soundcheckTool.chartH')) || {}; } catch (e) { return {}; } })();
 S.wheelZoom = (() => { try { return localStorage.getItem('soundcheckTool.wheelZoom') !== '0'; } catch (e) { return true; } })();
 function readParams() {
@@ -866,9 +867,11 @@ function renderItem(it) {
       <div class="ctl">
         <label><input type="checkbox" id="cFocus" ${o.focus ? 'checked' : ''}> Y 軸聚焦上下限</label>
         <label><input type="checkbox" id="cNormal" ${o.normal ? 'checked' : ''}> 顯示正常樣本</label>
+        <label title="取消勾選後，問題序號的曲線和其他序號的離群點都不畫在圖上（上下限、不良率等計算不受影響）"><input type="checkbox" id="cOut" ${S.showOutlier ? 'checked' : ''}> 顯示離群資料</label>
         <label title="取消勾選後，滑鼠在圖上滾動會捲動頁面"><input type="checkbox" id="cWheel" ${S.wheelZoom ? 'checked' : ''}> 滾輪縮放</label>
         <span class="zbtns"><button class="btn sm" id="cZin" title="放大">＋</button><button class="btn sm" id="cZout" title="縮小">－</button><button class="btn sm" id="cReset" title="回到完整範圍">重設縮放</button></span>
       </div></div>
+    <div class="note" id="hideNote" style="margin:0 0 4px;color:var(--warn)"></div>
     <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
     <div class="chart-grip" id="chartGrip" title="拖曳調整圖表高度（雙擊還原）"><span></span></div>
     <div class="snlegend" id="snLegend"></div>
@@ -924,6 +927,7 @@ function renderItem(it) {
 
   $('#cFocus').onchange = e => { o.focus = e.target.checked; S.zoom[it.name] = null; drawChart(it); };
   $('#cNormal').onchange = e => { o.normal = e.target.checked; S.zoom[it.name] = null; drawChart(it); };
+  $('#cOut').onchange = e => { S.showOutlier = e.target.checked; try { localStorage.setItem('soundcheckTool.showOutlier', S.showOutlier ? '1' : '0'); } catch (er) { } S.zoom[it.name] = null; drawChart(it); };
   $('#cWheel').onchange = e => { S.wheelZoom = e.target.checked; try { localStorage.setItem('soundcheckTool.wheelZoom', S.wheelZoom ? '1' : '0'); } catch (er) { } };
   $('#cReset').onclick = () => { S.zoom[it.name] = null; drawChart(it); };
   $('#cZin').onclick = () => { const c = $('#chart'); if (c._zoomBy) c._zoomBy(0.7); };
@@ -1338,7 +1342,10 @@ function drawChart(it) {
   const W = Math.max(360, el.clientWidth), H = chartHeight(isC);
   const m = { l: 62, r: 44, t: 14, b: 46 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
   const xv = isC ? it.xs : it.recs.map((_, i) => i + 1);
-  const visible = r => r.flag || o.normal;
+  const visible = r => r.flag ? S.showOutlier : o.normal;
+  // 不顯示離群資料時：問題序號整條不畫，其他序號只拿掉離群的點
+  const shownYs = (r, i) => S.showOutlier ? r.ys : r.ys.map((v, j) => it.stats[j] && it.stats[j].out.has(i) ? NaN : v);
+  const shown = it.recs.map((r, i) => visible(r) ? shownYs(r, i) : null);
 
   // x 軸用「資料座標」計算（對數軸取 log10），縮放時只改可視範圍 vx0～vx1
   const logScale = isC && it.logX && xv.every(x => x > 0);
@@ -1354,7 +1361,7 @@ function drawChart(it) {
     it.stats.forEach(s => { if (s.on) { acc(s.usl); acc(s.lsl); acc(s.mean); } });
     const sp = (hi - lo) || Math.abs(hi) * 0.1 || 1; lo -= sp * 0.35; hi += sp * 0.35;
   } else {
-    it.recs.forEach(r => { if (visible(r)) r.ys.forEach(acc); });
+    shown.forEach(ys => { if (ys) ys.forEach(acc); });
     it.stats.forEach(s => { if (s.on) { acc(s.usl); acc(s.lsl); } });
     const sp = (hi - lo) || Math.abs(hi) * 0.1 || 1; lo -= sp * 0.06; hi += sp * 0.06;
   }
@@ -1402,8 +1409,8 @@ function drawChart(it) {
   let marks = '', lims = '';
   const selI = it.recs.findIndex(r => r.sn === S.selSn);
   if (isC) {
-    it.recs.forEach((r, i) => { if (!r.flag && o.normal) marks += `<path class="c n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(r.ys)}"/>`; });
-    it.recs.forEach((r, i) => { if (r.flag) marks += `<path class="c b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(r.ys)}"/>`; });
+    it.recs.forEach((r, i) => { if (!r.flag && shown[i]) marks += `<path class="c n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(shown[i])}"/>`; });
+    it.recs.forEach((r, i) => { if (r.flag && shown[i]) marks += `<path class="c b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" d="${pathFor(shown[i])}"/>`; });
     if (selI >= 0) it.recs[selI].older.forEach(h => { marks += `<path class="c old" style="--c:${snColor(h.sn)}" d="${pathFor(h.ys)}"/>`; });
     // 未測試頻點：灰色底
     let bands = '';
@@ -1432,9 +1439,9 @@ function drawChart(it) {
       if (s.lsl != null && Number.isFinite(s.lsl) && inY(Y(s.lsl))) g += `<text class="limlbl" x="${m.l + pw + 5}" y="${Y(s.lsl) + 4}">LSL</text>`;
     }
     const rr = Math.max(3, Math.min(7, pw / ((vx1 - vx0) || 1) / 2.5));
-    it.recs.forEach((r, i) => { if (!r.flag && o.normal && Number.isFinite(r.ys[0])) marks += `<circle class="d n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr}"/>`; });
+    it.recs.forEach((r, i) => { if (!r.flag && shown[i] && Number.isFinite(shown[i][0])) marks += `<circle class="d n${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr}"/>`; });
     if (selI >= 0) it.recs[selI].older.forEach(h => { if (Number.isFinite(h.ys[0])) marks += `<circle class="d old" style="--c:${snColor(h.sn)}" cx="${X(selI + 1)}" cy="${Y(h.ys[0])}" r="${rr + 3}"/>`; });
-    it.recs.forEach((r, i) => { if (r.flag && Number.isFinite(r.ys[0])) marks += `<circle class="d b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr + 1}"/>`; });
+    it.recs.forEach((r, i) => { if (r.flag && shown[i] && Number.isFinite(shown[i][0])) marks += `<circle class="d b${i === selI ? ' sel' : ''}" style="--c:${snColor(r.sn)}" data-i="${i}" cx="${X(i + 1)}" cy="${Y(r.ys[0])}" r="${rr + 1}"/>`; });
   }
   const cid = 'clp' + Math.random().toString(36).slice(2, 8);
   const svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
@@ -1462,9 +1469,9 @@ function drawChart(it) {
     let j = 0, i = -1;
     if (isC) {
       let best = Infinity; xv.forEach((x, k) => { const d = Math.abs(X(x) - px); if (d < best) { best = d; j = k; } });
-      let bd = Infinity; it.recs.forEach((r, k) => { if (!visible(r)) return; const v = r.ys[j]; if (!Number.isFinite(v)) return; const d = Math.abs(Y(v) - py); if (d < bd) { bd = d; i = k; } });
+      let bd = Infinity; it.recs.forEach((r, k) => { if (!shown[k]) return; const v = shown[k][j]; if (!Number.isFinite(v)) return; const d = Math.abs(Y(v) - py); if (d < bd) { bd = d; i = k; } });
     } else {
-      let bd = Infinity; it.recs.forEach((r, k) => { if (!visible(r)) return; const v = r.ys[0]; if (!Number.isFinite(v)) return; const d = Math.hypot(X(k + 1) - px, Y(v) - py); if (d < bd) { bd = d; i = k; } });
+      let bd = Infinity; it.recs.forEach((r, k) => { if (!shown[k]) return; const v = shown[k][0]; if (!Number.isFinite(v)) return; const d = Math.hypot(X(k + 1) - px, Y(v) - py); if (d < bd) { bd = d; i = k; } });
     }
     return { j, i, px, py };
   }
@@ -1505,6 +1512,12 @@ function drawChart(it) {
   ov.addEventListener('mouseleave', () => { el.classList.remove('dim'); tip.style.display = 'none'; ptm.style.display = 'none'; xh.style.display = 'none'; if (hlEl) hlEl.classList.remove('hl'); hlEl = null; });
   /* ---- 滑鼠縮放：滾輪縮放、拖曳平移、Shift＋拖曳框選放大、雙擊還原 ---- */
   const rb = $('#cReset'); if (rb) rb.disabled = !z;
+  const hn = $('#hideNote');
+  if (hn) {
+    const hu = it.recs.filter(r => r.flag).length;
+    const hp = it.recs.reduce((c, r, i) => c + (r.flag ? 0 : it.stats.reduce((cc, st, j) => cc + (st.out.has(i) && Number.isFinite(r.ys[j]) ? 1 : 0), 0)), 0);
+    hn.textContent = S.showOutlier || (!hu && !hp) ? '' : `圖上已隱藏 ${hu} 個問題序號${isC ? `、其他序號的 ${hp} 個離群點` : ''}（計算不受影響）`;
+  }
   const toData = (px, py) => ({ x: vx0 + (px - m.l) / pw * (vx1 - vx0), y: hi - (py - m.t) / ph * (hi - lo) });
   const setZoom = (x0, x1, y0, y1) => {
     const fw = fx1 - fx0, fh = (fy1 - fy0) || 1;
