@@ -284,6 +284,17 @@ I18N.add({
   "虛線圈 = 選取序號較早的測試（重測）": "Dashed ring = earlier tests of the selected unit (retest)",
   "重測序號數（同序號多份 log）": "Retested units (several logs per serial)",
 
+
+  /* 縮放 */
+  "滾輪縮放": "Wheel zoom",
+  "取消勾選後，滑鼠在圖上滾動會捲動頁面": "Untick to let the mouse wheel scroll the page over the chart",
+  "放大": "Zoom in",
+  "縮小": "Zoom out",
+  "重設縮放": "Reset zoom",
+  "回到完整範圍": "Back to the full range",
+  "拖曳調整圖表高度（雙擊還原）": "Drag to change the chart height (double-click to reset)",
+  "縮放：滾輪放大縮小（Shift＋滾輪只縮放 Y 軸、Alt＋滾輪只縮放 X 軸）；拖曳平移；Shift＋拖曳框選放大；雙擊還原。拖曳圖表下緣的橫條可調整圖表高度。": "Zoom: mouse wheel zooms in and out (Shift + wheel zooms the Y axis only, Alt + wheel the X axis only); drag to pan; Shift + drag to zoom into a box; double-click to reset. Drag the bar under the chart to change its height.",
+
   /* meta description */
   "選擇資料夾批次讀取 Soundcheck log，每個測項整理成表格與曲線圖，用中位數 / MAD 排除離群值後計算上下限，並列出有問題的序號。": "Batch-read Soundcheck logs from a folder, turn each test item into a table and curve chart, calculate limits after removing outliers with median / MAD, and list the problem units."
 });
