@@ -297,6 +297,8 @@ I18N.add({
 
   "顯示離群資料": "Show outlier data",
   "取消勾選後，問題序號的曲線和其他序號的離群點都不畫在圖上（上下限、不良率等計算不受影響）": "Untick to leave problem units' curves and other units' outlier points off the chart (limits, fail rates and other calculations are unaffected)",
+  "離群值（目前不顯示）": "Outlier value (hidden)",
+  "所有序號都被隱藏了（請勾選圖表右上角的「顯示正常樣本」或「顯示離群資料」）": "Every unit is hidden (tick \"Show normal units\" or \"Show outlier data\" at the top right of the chart)",
   /* meta description */
   "選擇資料夾批次讀取 Soundcheck log，每個測項整理成表格與曲線圖，用中位數 / MAD 排除離群值後計算上下限，並列出有問題的序號。": "Batch-read Soundcheck logs from a folder, turn each test item into a table and curve chart, calculate limits after removing outliers with median / MAD, and list the problem units."
 });
@@ -383,6 +385,12 @@ I18N.rules([
   [/^重測：第 (\d+) \/ (\d+) 次$/, "Retest: test $1 of $2"],
   [/^圖上已隱藏 (\d+) 個問題序號、其他序號的 (\d+) 個離群點（計算不受影響）$/, "Hidden on the chart: $1 problem units and $2 outlier points of other units (calculations unaffected)"],
   [/^圖上已隱藏 (\d+) 個問題序號（計算不受影響）$/, "Hidden on the chart: $1 problem units (calculations unaffected)"],
+  [/^表格已隱藏 (.+)，跟著圖表的顯示選項（統計列與計算不受影響）$/, function (m, a) {
+    return "Hidden in the table, following the chart options: " + a.split("、").map(function (x) {
+      return x.replace(/^(\d+) 台問題序號$/, "$1 problem units").replace(/^(\d+) 台正常樣本$/, "$1 normal units").replace(/^(\d+) 台序號$/, "$1 units")
+              .replace(/^其他序號的 (\d+) 個離群值（空白格）$/, "$1 outlier values of other units (blank cells)");
+    }).join(", ") + " (summary rows and calculations unaffected)";
+  }],
   /* 計算明細 */
   [/^⇒ 合格範圍 (.*)$/, "⇒ accepted range $1"],
   [/^(\d+) 筆：$/, "$1: "],

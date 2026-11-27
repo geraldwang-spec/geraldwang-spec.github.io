@@ -178,6 +178,7 @@ table.xl input.lim:hover{border-color:var(--border)}
 table.xl input.lim:focus{outline:none;border-color:var(--accent);background:var(--surface)}
 table.xl input.lim.man{color:var(--accent);font-weight:700}
 table.xl input.lim.band::placeholder{color:var(--ok);font-weight:600}
+table.xl td.hid{background-image:repeating-linear-gradient(45deg,transparent 0 4px,var(--grid) 4px 5px)}
 table.xl td.off{color:var(--muted);background-image:repeating-linear-gradient(135deg,transparent 0 5px,var(--grid) 5px 6px)}
 table.xl td.ctr{text-align:center}
 table.xl td.hint{font-size:11px;color:var(--muted);text-align:left;font-weight:400}
@@ -231,7 +232,7 @@ body.resizing{cursor:ns-resize;user-select:none}
 <header>
   <div class="row">
     <a class="backlink" href="./#bench">← 回到工具站</a>
-    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-27b</span></h1>
+    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-27c</span></h1>
     <button class="btn primary" id="btnFolder">選擇資料夾…</button>
     <input type="file" id="inFolder" webkitdirectory directory multiple hidden>
     <span class="drop" id="drop">或把資料夾拖曳到這裡</span>
@@ -922,12 +923,13 @@ function renderItem(it) {
   <section class="card">
     <div class="card-h"><h3>測試資料表</h3>
       <div class="legend"><span><span class="swb" style="background:var(--bad-bg);border:1px solid var(--bad)"></span>離群（不納入計算）</span><span><span class="swb" style="background:var(--warn-bg);border:1px solid var(--warn)"></span>超出上下限</span>${isC ? '<span>點欄位標題可查看該頻率的計算明細</span>' : ''}</div></div>
+    <div class="note" id="tblNote" style="margin:0 0 6px;color:var(--warn)"></div>
     <div class="tbl-wrap" id="tbl"></div>
   </section>`;
 
   $('#cFocus').onchange = e => { o.focus = e.target.checked; S.zoom[it.name] = null; drawChart(it); };
-  $('#cNormal').onchange = e => { o.normal = e.target.checked; S.zoom[it.name] = null; drawChart(it); };
-  $('#cOut').onchange = e => { S.showOutlier = e.target.checked; try { localStorage.setItem('soundcheckTool.showOutlier', S.showOutlier ? '1' : '0'); } catch (er) { } S.zoom[it.name] = null; drawChart(it); };
+  $('#cNormal').onchange = e => { o.normal = e.target.checked; S.zoom[it.name] = null; drawChart(it); renderTable(it); };
+  $('#cOut').onchange = e => { S.showOutlier = e.target.checked; try { localStorage.setItem('soundcheckTool.showOutlier', S.showOutlier ? '1' : '0'); } catch (er) { } S.zoom[it.name] = null; drawChart(it); renderTable(it); };
   $('#cWheel').onchange = e => { S.wheelZoom = e.target.checked; try { localStorage.setItem('soundcheckTool.wheelZoom', S.wheelZoom ? '1' : '0'); } catch (er) { } };
   $('#cReset').onclick = () => { S.zoom[it.name] = null; drawChart(it); };
   $('#cZin').onclick = () => { const c = $('#chart'); if (c._zoomBy) c._zoomBy(0.7); };
@@ -1258,14 +1260,29 @@ function renderTable(it) {
   h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">標準差 σ</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${fmt(s.sd, 3)}</td>`).join('')}</tr>`;
   h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">超限台數</td><td colspan="2" class="hint">不良率 ${pct(it.failRate)}（${it.failUnits} / ${it.nUnits} 台）</td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j, s.on && s.failN ? 'f' : '')}>${s.on ? s.failN : ''}</td>`).join('')}</tr>`;
   h += `<tr class="sum"><td class="stk c0"></td><td class="stk c1">排除筆數</td><td></td><td></td>${it.stats.map((s, j) => `<td data-j="${j}"${cc(j)}>${s.out.size + s.unitEx.length}</td>`).join('')}</tr>`;
+  // 跟著圖表的「顯示正常樣本／顯示離群資料」一起隱藏列或離群值
+  const o = S.chartOpt[it.name] || { normal: true };
+  let hidRows = 0, hidPts = 0;
   it.recs.forEach((r, i) => {
+    if (r.flag ? !S.showOutlier : !o.normal) { hidRows++; return; }
     const outS = new Set(r.out), failS = new Set(r.fail);
     const st = r.flag ? `<td class="st-bad">問題（離群 ${r.out.length}）</td>` : (r.out.length || r.fail.length) ? `<td class="st-warn">${[r.out.length ? `離群 ${r.out.length}（未達門檻）` : '', r.fail.length ? `超限 ${r.fail.length}` : ''].filter(Boolean).join('、')}</td>` : `<td class="st-ok">OK</td>`;
     h += `<tr class="r ${r.sn === S.selSn ? 'sel' : ''}" data-sn="${esc(r.sn)}"><td class="stk c0">${i + 1}</td><td class="stk c1"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}${rtBadge(r)}</td>${st}<td style="text-align:left">${esc(r.time)}</td>`;
-    for (let j = 0; j < npts; j++) h += `<td data-j="${j}"${cc(j, outS.has(j) ? 'o' : failS.has(j) ? 'f' : '')}>${fmt(r.ys[j])}</td>`;
+    for (let j = 0; j < npts; j++) {
+      if (!S.showOutlier && it.stats[j].out.has(i) && Number.isFinite(r.ys[j])) { hidPts++; h += `<td data-j="${j}"${cc(j, 'hid')} title="離群值（目前不顯示）"></td>`; continue; }
+      h += `<td data-j="${j}"${cc(j, outS.has(j) ? 'o' : failS.has(j) ? 'f' : '')}>${fmt(r.ys[j])}</td>`;
+    }
     h += `</tr>`;
   });
+  if (hidRows === it.recs.length) h += `<tr><td colspan="${4 + npts}" class="hint" style="text-align:left;padding:10px">所有序號都被隱藏了（請勾選圖表右上角的「顯示正常樣本」或「顯示離群資料」）</td></tr>`;
   h += `</tbody></table>`;
+  const tn = $('#tblNote');
+  if (tn) {
+    const parts = [];
+    if (hidRows) parts.push(`${hidRows} 台${!o.normal && S.showOutlier ? '正常樣本' : !o.normal ? '序號' : '問題序號'}`);
+    if (hidPts) parts.push(`其他序號的 ${hidPts} 個離群值（空白格）`);
+    tn.textContent = parts.length ? `表格已隱藏 ${parts.join('、')}，跟著圖表的顯示選項（統計列與計算不受影響）` : '';
+  }
   const wrap = $('#tbl'); wrap.innerHTML = h;
   const cfg = getCfg(it.name);
   wrap.querySelectorAll('th.fq').forEach(th => th.onclick = () => selectFreq(it, +th.dataset.j));
