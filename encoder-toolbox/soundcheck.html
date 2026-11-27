@@ -232,7 +232,7 @@ body.resizing{cursor:ns-resize;user-select:none}
 <header>
   <div class="row">
     <a class="backlink" href="./#bench">← 回到工具站</a>
-    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-27c</span></h1>
+    <h1>Soundcheck Log 分析工具 <span style="font-size:11px;font-weight:400;color:var(--muted)">v2026-11-27d</span></h1>
     <button class="btn primary" id="btnFolder">選擇資料夾…</button>
     <input type="file" id="inFolder" webkitdirectory directory multiple hidden>
     <span class="drop" id="drop">或把資料夾拖曳到這裡</span>
@@ -1269,7 +1269,7 @@ function renderTable(it) {
     const st = r.flag ? `<td class="st-bad">問題（離群 ${r.out.length}）</td>` : (r.out.length || r.fail.length) ? `<td class="st-warn">${[r.out.length ? `離群 ${r.out.length}（未達門檻）` : '', r.fail.length ? `超限 ${r.fail.length}` : ''].filter(Boolean).join('、')}</td>` : `<td class="st-ok">OK</td>`;
     h += `<tr class="r ${r.sn === S.selSn ? 'sel' : ''}" data-sn="${esc(r.sn)}"><td class="stk c0">${i + 1}</td><td class="stk c1"><span class="sncol" style="--c:${snColor(r.sn)}"></span>${esc(r.sn)}${rtBadge(r)}</td>${st}<td style="text-align:left">${esc(r.time)}</td>`;
     for (let j = 0; j < npts; j++) {
-      if (!S.showOutlier && it.stats[j].out.has(i) && Number.isFinite(r.ys[j])) { hidPts++; h += `<td data-j="${j}"${cc(j, 'hid')} title="離群值（目前不顯示）"></td>`; continue; }
+      if (!S.showOutlier && it.on[j] && it.stats[j].out.has(i) && Number.isFinite(r.ys[j])) { hidPts++; h += `<td data-j="${j}"${cc(j, 'hid')} title="離群值（目前不顯示）"></td>`; continue; }
       h += `<td data-j="${j}"${cc(j, outS.has(j) ? 'o' : failS.has(j) ? 'f' : '')}>${fmt(r.ys[j])}</td>`;
     }
     h += `</tr>`;
@@ -1361,7 +1361,7 @@ function drawChart(it) {
   const xv = isC ? it.xs : it.recs.map((_, i) => i + 1);
   const visible = r => r.flag ? S.showOutlier : o.normal;
   // 不顯示離群資料時：問題序號整條不畫，其他序號只拿掉離群的點
-  const shownYs = (r, i) => S.showOutlier ? r.ys : r.ys.map((v, j) => it.stats[j] && it.stats[j].out.has(i) ? NaN : v);
+  const shownYs = (r, i) => S.showOutlier ? r.ys : r.ys.map((v, j) => it.on[j] && it.stats[j] && it.stats[j].out.has(i) ? NaN : v);   // 未測試頻點不判定離群，照常顯示
   const shown = it.recs.map((r, i) => visible(r) ? shownYs(r, i) : null);
 
   // x 軸用「資料座標」計算（對數軸取 log10），縮放時只改可視範圍 vx0～vx1
@@ -1532,7 +1532,7 @@ function drawChart(it) {
   const hn = $('#hideNote');
   if (hn) {
     const hu = it.recs.filter(r => r.flag).length;
-    const hp = it.recs.reduce((c, r, i) => c + (r.flag ? 0 : it.stats.reduce((cc, st, j) => cc + (st.out.has(i) && Number.isFinite(r.ys[j]) ? 1 : 0), 0)), 0);
+    const hp = it.recs.reduce((c, r, i) => c + (r.flag ? 0 : it.stats.reduce((cc, st, j) => cc + (it.on[j] && st.out.has(i) && Number.isFinite(r.ys[j]) ? 1 : 0), 0)), 0);
     hn.textContent = S.showOutlier || (!hu && !hp) ? '' : `圖上已隱藏 ${hu} 個問題序號${isC ? `、其他序號的 ${hp} 個離群點` : ''}（計算不受影響）`;
   }
   const toData = (px, py) => ({ x: vx0 + (px - m.l) / pw * (vx1 - vx0), y: hi - (py - m.t) / ph * (hi - lo) });
